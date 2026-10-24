@@ -46,5 +46,28 @@ The confirmatory run had 12 sanitized `provider_request_failed` results after su
 - All 34 test files: PASS in isolated `HERANDHIM_HOME` processes, 640 assertions total.
 - Monolithic shared-process run: 637 PASS, 3 FAIL from known global-home/module-cache order dependence; all three failures pass in isolation.
 - Ruff: PASS for changed runtime, tests, and benchmark scripts.
-- Production, deployment, provider route, and `$0.30/day` production cap were not changed.
+- At the comparative benchmark stage, production, deployment, provider route,
+  and the `$0.30/day` production cap were not changed.
+
+## Accepted production deployment
+
+The owner accepted the comparative result and explicitly authorized commit,
+push, and deployment. Commit `86bf781` was pushed to
+`ipavlichenko/HerAndHim:main` and deployed to `sara-eu` as image
+`sha256:53b8cf368c5d…`.
+
+- Verified pre-deploy backup: `sara-20261024T124224Z.tar.gz`, SHA-256
+  `ce3c3e5a64af3056863911af3395700bae66b9b6d1524416511fb716a655fc19`.
+- Import, health, Telegram registration, delivery state, and controlled restart
+  passed. The previous image remains available as
+  `herandhim-sara:rollback-pre-86bf781`.
+- VPS outbound identity SHA-256 exactly matched the repository seed:
+  `6066ff745bbafd74b935a703f3cb626597587bd9585e058e7db81d83a67d3be2`.
+- Existing production dialogue ledger correctly remained at 34 calls and
+  `$0.282094208`; the `$0.30/day` cap was not increased or reset.
+- One isolated production-image/config/route smoke returned a visible reply
+  for `$0.000807444` without changing persistent history, memory, or the
+  production ledger.
+- Deployment inspection found executable mode missing from the operator shell
+  scripts. It was repaired on the VPS and in the follow-up repository commit.
 
