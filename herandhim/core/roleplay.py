@@ -171,13 +171,15 @@ def validate_roleplay_turn(
                 issues.append("mixed_or_malformed_action_paragraph")
                 continue
             action_paragraphs.append(paragraph)
-            if not re.search(r"\bСара\b", paragraph):
-                issues.append("action_without_sarah")
         else:
             speech_paragraphs.append(paragraph)
 
     if len(action_paragraphs) < (2 if opening else 1):
         issues.append("missing_action_beats")
+    if action_paragraphs and not any(
+        re.search(r"\bСара\b", paragraph) for paragraph in action_paragraphs
+    ):
+        issues.append("actions_do_not_identify_sarah")
     if not speech_paragraphs:
         issues.append("missing_direct_speech")
     if paragraphs and "*" in paragraphs[-1]:
@@ -201,7 +203,8 @@ def roleplay_repair_instruction(issues: tuple[str, ...], *, opening: bool) -> st
         + ", ".join(issues)
         + ". Rewrite the entire turn from scratch in Russian. Output only the replacement turn. "
         f"Write {minimum}-900 characters. {opening_rule} "
-        "Every Sarah action must be a separate paragraph exactly like *Сара ...*; "
+        "Every Sarah action must be a separate *...* paragraph. Name Sarah in at least "
+        "the first action paragraph; later unambiguous third-person pronouns are allowed. "
         "direct speech must be separate plain text. Complete every sentence and every marker. "
         "Preserve the active scene state, Sarah's objective, tension, stakes, agency, consent, "
         "and Ilya's control over his own actions. Do not mention validation or repair."
@@ -447,8 +450,10 @@ class RoleplaySceneStore:
             f"{dramaturgy}\n"
             "Treat this state as continuity, not as permission to control Ilya. "
             "Write in scene form. Every action, sensation, or reaction belonging to Sarah "
-            "must be narrated in Russian third person, name her as Sarah, occupy its own "
-            "paragraph, and be enclosed in single asterisks: *Сара кладёт руку на стол.* "
+            "must be narrated in Russian third person, occupy its own paragraph, and be "
+            "enclosed in single asterisks: *Сара кладёт руку на стол.* Name Sarah in "
+            "at least the first action paragraph; later unambiguous third-person pronouns "
+            "are allowed. "
             "Never use first-person narration inside action paragraphs. Write Sarah's spoken "
             "dialogue as plain unformatted text in first person and separate it from action "
             "paragraphs. Sarah has her own desire, judgment, initiative, "

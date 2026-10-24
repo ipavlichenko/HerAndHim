@@ -177,6 +177,17 @@ def test_roleplay_validator_rejects_the_observed_broken_opening():
 def test_roleplay_validator_accepts_complete_opening_and_turn():
     assert validate_roleplay_turn(VALID_OPENING, opening=True).valid
     assert validate_roleplay_turn(VALID_TURN, opening=False).valid
+    pronoun_followup = (
+        "*Сара отодвигает стакан от свободного места напротив.*\n\n"
+        "*Она переводит взгляд на замок и снова смотрит на Илью.*\n\n"
+        "До первой остановки ещё далеко. Какое правило тебе нужно, чтобы восемь часов "
+        "в одном купе с незнакомкой остались твоим выбором?"
+    )
+    assert validate_roleplay_turn(pronoun_followup, opening=True).valid
+    unidentified = pronoun_followup.replace("Сара", "Она", 1)
+    assert validate_roleplay_turn(unidentified, opening=True).issues == (
+        "actions_do_not_identify_sarah",
+    )
     instruction = roleplay_repair_instruction(("too_short",), opening=True)
     assert "single allowed attempt" in instruction
     assert "220-900" in instruction
