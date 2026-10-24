@@ -4,6 +4,8 @@ import asyncio
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from herandhim.core.agent import Agent
 from herandhim.core.roleplay import (
     ROLEPLAY_SCENARIOS,
@@ -11,9 +13,11 @@ from herandhim.core.roleplay import (
     ROLEPLAY_START_REQUEST,
     ROLEPLAY_TURN_FAILURE_TEXT,
     RoleplaySceneStore,
+    decode_roleplay_turn_proposal,
     is_roleplay_end,
     is_roleplay_start,
     normalize_roleplay_turn,
+    render_roleplay_turn,
     roleplay_repair_instruction,
     roleplay_scenario_id,
     roleplay_start_request,
@@ -72,6 +76,56 @@ def test_scene_state_is_bounded_atomic_and_survives_recreation(tmp_path):
     assert json.loads(store.path.read_text(encoding="utf-8"))["turn_index"] == 1
 
 
+def test_candidate_state_is_copy_on_write_until_explicit_commit(tmp_path):
+    store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    before = store.start()
+
+    candidate = store.preview_update({
+        "phase": "next",
+        "last_beat": "Предложение ещё не принято",
+        "consent_state": "check_in",
+    })
+
+    assert store.load() == before
+    assert candidate["phase"] == "next"
+    assert candidate["turn_index"] == 1
+    store.commit(candidate)
+    assert store.load() == candidate
+
+
+def test_typed_beats_render_canonically_without_trusting_model_markdown():
+    proposal = decode_roleplay_turn_proposal(json.dumps({
+        "state_delta": {
+            "phase": "choice", "last_beat": "Сара ждёт", "consent_state": "mutual",
+        },
+        "beats": [
+            {"type": "action", "text": "  **Сара   ждёт.**  "},
+            {"type": "speech", "text": "  Какой   ход ты выбираешь?  "},
+        ],
+    }, ensure_ascii=False))
+
+    assert render_roleplay_turn(proposal) == (
+        "*Сара ждёт.*\n\nКакой ход ты выбираешь?"
+    )
+
+
+def test_typed_beats_reject_overlong_text_instead_of_silently_truncating():
+    payload = {
+        "state_delta": {
+            "phase": "choice",
+            "last_beat": "Сара ждёт",
+            "consent_state": "mutual",
+        },
+        "beats": [
+            {"type": "action", "text": "x" * 1_201},
+            {"type": "speech", "text": "Какой ход ты выбираешь?"},
+        ],
+    }
+
+    with pytest.raises(ValueError, match="beat_too_long"):
+        decode_roleplay_turn_proposal(json.dumps(payload, ensure_ascii=False))
+
+
 def test_scene_start_and_explicit_exit_are_distinct_from_in_scene_stop():
     assert is_roleplay_start(ROLEPLAY_START_REQUEST)
     assert roleplay_scenario_id(ROLEPLAY_START_REQUEST) == ROLEPLAY_SCENE_ID
@@ -80,13 +134,13 @@ def test_scene_start_and_explicit_exit_are_distinct_from_in_scene_stop():
     assert not is_roleplay_end("Стоп")
 
 
-def test_active_scene_forces_state_update_tool_and_keeps_full_output_budget(tmp_path):
+def test_active_scene_exposes_one_typed_turn_proposal_tool(tmp_path):
     agent = _secured_agent(tmp_path)
     agent.roleplay.start()
 
     tools = agent._build_tools_for_turn("Я захожу и закрываю дверь")
 
-    assert [row["function"]["name"] for row in tools] == ["update_roleplay_scene"]
+    assert [row["function"]["name"] for row in tools] == ["propose_roleplay_turn"]
     assert agent.roleplay.is_active()
 
 
@@ -136,9 +190,9 @@ def test_scene_context_preserves_agency_continuity_and_player_control(tmp_path):
     assert "ACTIVE ROLE-PLAY SCENE" in block
     assert "Sarah has her own desire" in block
     assert "Never narrate Ilya's unspoken" in block
-    assert "Russian third person" in block
-    assert "*Сара кладёт руку на стол.*" in block
-    assert "plain unformatted text in first person" in block
+    assert "Actions narrate Sarah in third person" in block
+    assert "propose_roleplay_turn" in block
+    assert "plain Russian text without Markdown" in block
     assert "SCENE DRAMATURGY" in block
     assert "sarah_objective" in block
     assert "tension" in block
@@ -297,7 +351,32 @@ def _tool_call(name, arguments):
     )
 
 
-def test_active_turn_updates_state_before_prose_and_redacts_trace(
+def _proposal_call(*, opening=False, last_beat="Илья ответил", markdown=False):
+    action = "Сара остаётся у двери, не делая за Илью ни шага."
+    if markdown:
+        action = f"*{action}*"
+    beats = [
+        {"type": "action", "text": action},
+        {"type": "speech", "text": (
+            "Я не буду решать за тебя. Скажи, какую дистанцию ты выбираешь?"
+        )},
+    ]
+    if opening:
+        beats.insert(1, {
+            "type": "action",
+            "text": "Сара кладёт ключ на консоль и оставляет выбор ему.",
+        })
+    return _tool_call("propose_roleplay_turn", {
+        "state_delta": {
+            "phase": "hallway",
+            "last_beat": last_beat,
+            "consent_state": "mutual",
+        },
+        "beats": beats,
+    })
+
+
+def test_active_turn_uses_one_typed_call_then_commits_candidate_state(
     tmp_path, monkeypatch,
 ):
     from herandhim.core import agent as agent_module
@@ -305,12 +384,7 @@ def test_active_turn_updates_state_before_prose_and_redacts_trace(
 
     sensitive_beat = "частный интимный такт"
     provider = _Provider([
-        _Message(tool_calls=[_tool_call("update_roleplay_scene", {
-            "phase": "hallway",
-            "last_beat": sensitive_beat,
-            "consent_state": "mutual",
-        })]),
-        _Message(content=VALID_TURN),
+        _Message(tool_calls=[_proposal_call(last_beat=sensitive_beat)]),
     ])
     monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
     monkeypatch.setattr(quota, "check_messages", lambda: None)
@@ -332,30 +406,26 @@ def test_active_turn_updates_state_before_prose_and_redacts_trace(
 
     reply = agent.chat("Я захожу и закрываю дверь")
 
-    assert reply == VALID_TURN
+    assert reply.startswith("Сара остаётся") is False
+    assert reply.startswith("*Сара остаётся")
     dialogue_calls = [call for call in provider.calls if call.get("purpose") == "dialogue"]
-    assert len(dialogue_calls) == 2
-    assert dialogue_calls[0]["tool_choice"]["function"]["name"] == "update_roleplay_scene"
-    assert dialogue_calls[1]["tool_choice"] == "none"
-    assert dialogue_calls[1]["tools"] == []
+    assert len(dialogue_calls) == 1
+    assert dialogue_calls[0]["tool_choice"]["function"]["name"] == "propose_roleplay_turn"
+    assert dialogue_calls[0]["max_tokens"] == 700
     assert agent.roleplay.load()["last_beat"] == sensitive_beat
     assert sensitive_beat not in json.dumps(trace, ensure_ascii=False)
-    tool_trace = next(row for row in trace if row.get("event") == "tool_calls")
-    assert tool_trace["calls"][0]["args"] == "[redacted-scene-state]"
+    proposal_trace = next(row for row in trace if row.get("event") == "roleplay_proposal")
+    assert proposal_trace["valid"] is True
+    assert proposal_trace["committed"] is True
+    assert proposal_trace["turn_index_after"] == proposal_trace["turn_index_before"] + 1
 
 
-def test_active_turn_can_use_third_and_final_call_for_one_repair(tmp_path, monkeypatch):
+def test_typed_turn_needs_no_repair_call(tmp_path, monkeypatch):
     from herandhim.core import agent as agent_module
     from herandhim.core import quota
 
     provider = _Provider([
-        _Message(tool_calls=[_tool_call("update_roleplay_scene", {
-            "phase": "hallway",
-            "last_beat": "Илья ответил",
-            "consent_state": "mutual",
-        })]),
-        _Message(content="*Сара замирает"),
-        _Message(content=VALID_TURN),
+        _Message(tool_calls=[_proposal_call()]),
     ])
     monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
     monkeypatch.setattr(quota, "check_messages", lambda: None)
@@ -375,27 +445,18 @@ def test_active_turn_can_use_third_and_final_call_for_one_repair(tmp_path, monke
 
     reply = agent.chat("Я отвечаю и жду")
 
-    assert reply == VALID_TURN
+    assert "какую дистанцию" in reply
     dialogue_calls = [call for call in provider.calls if call.get("purpose") == "dialogue"]
-    assert len(dialogue_calls) == 3
-    assert dialogue_calls[2]["tool_choice"] == "none"
-    assert dialogue_calls[2]["tools"] == []
+    assert len(dialogue_calls) == 1
     assert len({call["outbound_request_group"] for call in dialogue_calls}) == 1
 
 
-def test_active_turn_accepts_normalized_first_draft_without_repair(tmp_path, monkeypatch):
+def test_renderer_owns_markdown_even_when_model_adds_it(tmp_path, monkeypatch):
     from herandhim.core import agent as agent_module
     from herandhim.core import quota
 
-    mixed = (
-        "*Сара остаётся у двери.* — Я не буду решать за тебя и не сделаю вид, "
-        "что не заметила твой шаг. Скажи, какую дистанцию ты выбираешь?"
-    )
     provider = _Provider([
-        _Message(tool_calls=[_tool_call("update_roleplay_scene", {
-            "phase": "hallway", "last_beat": "Илья ответил", "consent_state": "mutual",
-        })]),
-        _Message(content=mixed),
+        _Message(tool_calls=[_proposal_call(markdown=True)]),
     ])
     monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
     monkeypatch.setattr(quota, "check_messages", lambda: None)
@@ -411,20 +472,23 @@ def test_active_turn_accepts_normalized_first_draft_without_repair(tmp_path, mon
 
     reply = agent.chat("Я отвечаю и жду")
 
-    assert reply == normalize_roleplay_turn(mixed)[0]
-    assert len([call for call in provider.calls if call.get("purpose") == "dialogue"]) == 2
+    assert reply.count("*") == 2
+    assert reply.startswith("*Сара")
+    assert len([call for call in provider.calls if call.get("purpose") == "dialogue"]) == 1
 
 
-def test_failed_active_turn_rolls_back_state_and_hidden_tool_history(tmp_path, monkeypatch):
+def test_invalid_typed_proposal_never_mutates_state_or_adds_tool_history(tmp_path, monkeypatch):
     from herandhim.core import agent as agent_module
     from herandhim.core import quota
 
     provider = _Provider([
-        _Message(tool_calls=[_tool_call("update_roleplay_scene", {
-            "phase": "advanced", "last_beat": "скрытое продвижение", "consent_state": "check_in",
+        _Message(tool_calls=[_tool_call("propose_roleplay_turn", {
+            "state_delta": {
+                "phase": "advanced", "last_beat": "скрытое продвижение",
+                "consent_state": "check_in",
+            },
+            "beats": [{"type": "action", "text": "Сара замирает."}],
         })]),
-        _Message(content="*Сара замирает"),
-        _Message(content="*Сара всё ещё замирает"),
     ])
     monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
     monkeypatch.setattr(quota, "check_messages", lambda: None)
@@ -449,7 +513,37 @@ def test_failed_active_turn_rolls_back_state_and_hidden_tool_history(tmp_path, m
     assert "скрытое продвижение" not in json.dumps(turn_history, ensure_ascii=False)
 
 
-def test_start_transaction_is_one_text_call_without_photo(tmp_path, monkeypatch):
+def test_provider_failure_before_proposal_never_mutates_scene_state(tmp_path, monkeypatch):
+    from herandhim.core import agent as agent_module
+    from herandhim.core import quota
+
+    class _ExplodingProvider:
+        requires_outbound_purpose = True
+
+        def chat(self, **kwargs):
+            raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
+    monkeypatch.setattr(quota, "check_messages", lambda: None)
+    monkeypatch.setattr(quota, "record_message", lambda: None)
+    agent = Agent(
+        _ExplodingProvider(), session_id="telegram:42",
+        memory_dir=str(tmp_path / "memory"), skills_dirs=[],
+        knowledge_path=str(tmp_path / "knowledge"),
+        persona_path=str(tmp_path / "persona"), soul_path=str(tmp_path / "soul"),
+        auto_compaction=False,
+    )
+    agent.roleplay.start()
+    agent.roleplay.mark_opened()
+    before = agent.roleplay.load()
+
+    reply = agent.chat("Я делаю следующий ход")
+
+    assert reply == "Error: provider unavailable"
+    assert agent.roleplay.load() == before
+
+
+def test_start_transaction_is_one_typed_call_without_photo(tmp_path, monkeypatch):
     from herandhim.core import agent as agent_module
     from herandhim.core import quota
 
@@ -457,7 +551,7 @@ def test_start_transaction_is_one_text_call_without_photo(tmp_path, monkeypatch)
     monkeypatch.setattr(quota, "check_messages", lambda: None)
     monkeypatch.setattr(quota, "record_message", lambda: None)
     provider = _Provider([
-        _Message(content=VALID_OPENING),
+        _Message(tool_calls=[_proposal_call(opening=True)]),
     ])
     agent = Agent(
         provider,
@@ -474,13 +568,15 @@ def test_start_transaction_is_one_text_call_without_photo(tmp_path, monkeypatch)
 
     dialogue_calls = [call for call in provider.calls if call.get("purpose") == "dialogue"]
     assert len(dialogue_calls) == 1
-    assert dialogue_calls[0]["tool_choice"] == "none"
-    assert dialogue_calls[0]["tools"] == []
-    assert "Семь минут" in reply
+    assert dialogue_calls[0]["tool_choice"]["function"]["name"] == "propose_roleplay_turn"
+    assert [row["function"]["name"] for row in dialogue_calls[0]["tools"]] == [
+        "propose_roleplay_turn",
+    ]
+    assert "какую дистанцию" in reply
     assert agent.roleplay.load()["opening_pending"] is False
 
 
-def test_broken_opening_gets_exactly_one_repair_attempt(tmp_path, monkeypatch):
+def test_invalid_opening_schema_fails_once_without_state_advance(tmp_path, monkeypatch):
     from herandhim.core import agent as agent_module
     from herandhim.core import quota
 
@@ -490,40 +586,7 @@ def test_broken_opening_gets_exactly_one_repair_attempt(tmp_path, monkeypatch):
     trace = []
     monkeypatch.setattr(agent_module, "_log_detail", trace.append)
     provider = _Provider([
-        _Message(content="*Сара стоит у окна и смотрит на молнию"),
-        _Message(content=VALID_OPENING),
-    ])
-    agent = Agent(
-        provider,
-        session_id="telegram:42",
-        memory_dir=str(tmp_path / "memory"),
-        skills_dirs=[],
-        knowledge_path=str(tmp_path / "knowledge"),
-        persona_path=str(tmp_path / "persona"),
-        soul_path=str(tmp_path / "soul"),
-        auto_compaction=False,
-    )
-
-    reply = agent.chat(roleplay_start_request("country_house_storm"))
-
-    assert reply == VALID_OPENING
-    assert len([call for call in provider.calls if call.get("purpose") == "dialogue"]) == 2
-    assert provider.calls[1]["tools"] == []
-    assert provider.calls[1]["tool_choice"] == "none"
-    assert [row["attempt"] for row in trace if row.get("event") == "roleplay_validation"] == [1, 2]
-    assert agent.roleplay.load()["opening_pending"] is False
-
-
-def test_second_invalid_opening_fails_closed_without_third_call(tmp_path, monkeypatch):
-    from herandhim.core import agent as agent_module
-    from herandhim.core import quota
-
-    monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
-    monkeypatch.setattr(quota, "check_messages", lambda: None)
-    monkeypatch.setattr(quota, "record_message", lambda: None)
-    provider = _Provider([
-        _Message(content="*Сара смотрит в окно"),
-        _Message(content="*Сара всё ещё смотрит в окно"),
+        _Message(tool_calls=[_tool_call("propose_roleplay_turn", {"beats": []})]),
     ])
     agent = Agent(
         provider,
@@ -539,8 +602,12 @@ def test_second_invalid_opening_fails_closed_without_third_call(tmp_path, monkey
     reply = agent.chat(roleplay_start_request("country_house_storm"))
 
     assert reply == ROLEPLAY_TURN_FAILURE_TEXT
-    assert len(provider.calls) == 2
+    assert len([call for call in provider.calls if call.get("purpose") == "dialogue"]) == 1
+    proposal_trace = next(row for row in trace if row.get("event") == "roleplay_proposal")
+    assert proposal_trace["valid"] is False
+    assert proposal_trace["committed"] is False
     assert agent.roleplay.load()["opening_pending"] is True
+    assert agent.roleplay.load()["turn_index"] == 0
 
 
 def test_retry_after_failed_opening_keeps_opening_contract(tmp_path, monkeypatch):
@@ -551,14 +618,8 @@ def test_retry_after_failed_opening_keeps_opening_contract(tmp_path, monkeypatch
     monkeypatch.setattr(quota, "check_messages", lambda: None)
     monkeypatch.setattr(quota, "record_message", lambda: None)
     provider = _Provider([
-        _Message(content="*Сара смотрит в окно"),
-        _Message(content="*Сара всё ещё смотрит в окно"),
-        _Message(tool_calls=[_tool_call("update_roleplay_scene", {
-            "phase": "storm",
-            "last_beat": "Илья попросил повторить начало",
-            "consent_state": "mutual",
-        })]),
-        _Message(content=VALID_OPENING),
+        _Message(content="wrong response channel"),
+        _Message(tool_calls=[_proposal_call(opening=True)]),
     ])
     agent = Agent(
         provider,
@@ -573,7 +634,7 @@ def test_retry_after_failed_opening_keeps_opening_contract(tmp_path, monkeypatch
 
     assert agent.chat(roleplay_start_request("country_house_storm")) == ROLEPLAY_TURN_FAILURE_TEXT
     assert agent.roleplay.load()["opening_pending"] is True
-    assert agent.chat("Повтори сцену сначала") == VALID_OPENING
+    assert "какую дистанцию" in agent.chat("Повтори сцену сначала")
     assert agent.roleplay.load()["opening_pending"] is False
 
 

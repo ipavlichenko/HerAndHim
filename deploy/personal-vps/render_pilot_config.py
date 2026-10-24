@@ -61,7 +61,7 @@ def build_config(secret_dir: pathlib.Path) -> dict:
             "activeProvider": "mistral/eu",
             "maxInputTokensEstimated": 6000,
             "maxOutputTokens": 1600,
-            "maxCallsPerTurn": 3,
+            "maxCallsPerTurn": 2,
             "connectTimeoutSeconds": 5,
             "firstByteTimeoutSeconds": 20,
             "totalTimeoutSeconds": 90,

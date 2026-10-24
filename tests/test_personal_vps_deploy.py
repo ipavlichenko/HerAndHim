@@ -70,7 +70,7 @@ def test_config_is_owner_only_exact_route_and_bounded(tmp_path):
     assert purposes["dialogue"]["model"] == "mistralai/mistral-large-4-0"
     assert purposes["dialogue"]["activeProvider"] == "mistral/eu"
     assert purposes["dialogue"]["maxInputTokensEstimated"] == 6000
-    assert purposes["dialogue"]["maxCallsPerTurn"] == 3
+    assert purposes["dialogue"]["maxCallsPerTurn"] == 2
     assert purposes["vision"]["model"] == "openai/gpt-6.1-sol"
     assert purposes["vision"]["activeProvider"] == "azure/eu"
     assert purposes["memory_consolidation"]["activeProvider"] == "google-vertex/europe"

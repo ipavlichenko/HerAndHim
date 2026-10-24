@@ -44,15 +44,14 @@ from .memory.emotional_graph import SentimentAnalyzer
 from .memory.manager import MemoryManager
 from .memory.temporal_index import TimelineEvent
 from .roleplay import (
-    ROLEPLAY_STATE_TOOL,
     ROLEPLAY_TURN_FAILURE_TEXT,
+    ROLEPLAY_TURN_TOOL,
     RoleplaySceneStore,
+    decode_roleplay_turn_proposal,
     is_roleplay_end,
     is_roleplay_start,
-    normalize_roleplay_turn,
-    roleplay_repair_instruction,
+    render_roleplay_turn,
     roleplay_scenario_id,
-    validate_roleplay_turn,
 )
 from .skill_loader import SkillRegistry
 from .tools import (
@@ -885,8 +884,6 @@ Don't repeat this if `bot_name` already exists in memory.
         if isinstance(user_input, list):
             return []
 
-        if is_roleplay_start(user_input):
-            return []
         roleplay = getattr(self, "roleplay", None)
         if roleplay is not None and roleplay.is_active() and not is_roleplay_end(user_input):
             choice = self._initial_tool_choice(user_input)
@@ -898,7 +895,7 @@ Don't repeat this if `bot_name` already exists in memory.
                     schema for schema in self._build_tools()
                     if schema.get("function", {}).get("name") == "take_selfie"
                 ]
-            return [ROLEPLAY_STATE_TOOL]
+            return [ROLEPLAY_TURN_TOOL]
 
         initial_choice = self._initial_tool_choice(user_input)
         allowed_names = (
@@ -2370,73 +2367,23 @@ Don't repeat this if `bot_name` already exists in memory.
             logger.warning("[Agent] Replaced an ordinary-dialogue immersion break")
         return guarded
 
-    def _roleplay_response_or_repair(
+    def _accept_roleplay_proposal(
         self,
-        response,
-        messages_to_send: list[dict],
-        outbound_kw: dict,
+        message,
         *,
         opening: bool,
-    ) -> tuple[str | None, object | None]:
-        """Accept a complete scene turn or make exactly one bounded repair call."""
-
-        def inspect(candidate, attempt: int):
-            choice = candidate.choices[0]
-            message = choice.message
-            text = self._enforce_immersion_response(message.content or "")
-            text, normalized = normalize_roleplay_turn(text)
-            result = validate_roleplay_turn(
-                text,
-                opening=opening,
-                finish_reason=getattr(choice, "finish_reason", None),
-            )
-            if getattr(message, "tool_calls", None):
-                result = type(result)(False, result.issues + ("unexpected_tool_call",))
-            _log_detail({
-                "event": "roleplay_validation",
-                "attempt": attempt,
-                "valid": result.valid,
-                "issues": list(result.issues),
-                "normalized": normalized,
-                "response_len": len(text),
-                "finish_reason": getattr(choice, "finish_reason", None),
-            })
-            return text, message, result
-
-        text, message, validation = inspect(response, 1)
-        if validation.valid:
-            return text, message
-
-        repair_messages = [
-            *messages_to_send,
-            {"role": "assistant", "content": text},
-            {
-                "role": "system",
-                "content": roleplay_repair_instruction(
-                    validation.issues,
-                    opening=opening,
-                ),
-            },
-        ]
-        try:
-            repaired = self.provider.chat(
-                messages=repair_messages,
-                tools=[],
-                tool_choice="none",
-                **outbound_kw,
-            )
-        except Exception:
-            _log_detail({
-                "event": "roleplay_validation",
-                "attempt": 2,
-                "valid": False,
-                "issues": ["repair_provider_failure"],
-            })
-            return None, None
-        repaired_text, repaired_message, repaired_validation = inspect(repaired, 2)
-        if not repaired_validation.valid:
-            return None, None
-        return repaired_text, repaired_message
+    ) -> tuple[str, dict, int]:
+        """Validate one typed proposal and build its uncommitted next state."""
+        calls = list(getattr(message, "tool_calls", None) or [])
+        if len(calls) != 1 or calls[0].function.name != "propose_roleplay_turn":
+            raise ValueError("missing_roleplay_proposal")
+        proposal = decode_roleplay_turn_proposal(calls[0].function.arguments)
+        rendered = render_roleplay_turn(proposal)
+        candidate = self.roleplay.preview_update(
+            proposal.state_delta,
+            opening_accepted=opening,
+        )
+        return rendered, candidate, len(proposal.beats)
 
     def chat(self, user_input: str | list, **kwargs) -> str:
         """Send *user_input* to the LLM and return the final text response.
@@ -2471,22 +2418,7 @@ Don't repeat this if `bot_name` already exists in memory.
             )
         )
 
-        turn_message_start = len(self.messages)
         user_message = {"role": "user", "content": user_input}
-        roleplay_state_before_turn = (
-            self.roleplay.load()
-            if roleplay_turn and not self._roleplay_started_this_turn
-            else None
-        )
-        roleplay_state_updated_this_turn = False
-
-        def rollback_roleplay_transaction() -> None:
-            if not roleplay_state_updated_this_turn or roleplay_state_before_turn is None:
-                return
-            self.roleplay.restore(roleplay_state_before_turn)
-            del self.messages[turn_message_start:]
-            self.messages.append(dict(user_message))
-
         self.messages.append(user_message)
         record_message()
 
@@ -2507,7 +2439,7 @@ Don't repeat this if `bot_name` already exists in memory.
         outbound_kw = self._outbound_purpose_kwargs(user_input)
         if outbound_kw.get("purpose") == "dialogue":
             outbound_kw["max_tokens"] = (
-                420 if self.roleplay.is_active()
+                700 if self.roleplay.is_active()
                 else self._dialogue_output_budget(user_input)
             )
         initial_tool_choice = self._initial_tool_choice(user_input)
@@ -2517,11 +2449,11 @@ Don't repeat this if `bot_name` already exists in memory.
         )
         if (
             self.roleplay.is_active()
-            and not self._roleplay_started_this_turn
             and not active_photo_request
         ):
+            current_tools = [ROLEPLAY_TURN_TOOL]
             initial_tool_choice = {
-                "type": "function", "function": {"name": "update_roleplay_scene"},
+                "type": "function", "function": {"name": "propose_roleplay_turn"},
             }
         tool_rounds = 0
         force_final_after_roleplay_tool = False
@@ -2551,23 +2483,20 @@ Don't repeat this if `bot_name` already exists in memory.
                 message = response.choices[0].message
 
                 if not message.tool_calls:
-                    if roleplay_turn:
-                        response_text, accepted_message = self._roleplay_response_or_repair(
-                            response,
-                            messages_to_send,
-                            outbound_kw,
-                            opening=roleplay_opening,
-                        )
-                        if response_text is None or accepted_message is None:
-                            rollback_roleplay_transaction()
-                            self.messages.append({
-                                "role": "assistant",
-                                "content": ROLEPLAY_TURN_FAILURE_TEXT,
-                            })
-                            return ROLEPLAY_TURN_FAILURE_TEXT
-                        message = accepted_message
-                    else:
-                        response_text = self._enforce_immersion_response(message.content or "")
+                    if roleplay_turn and not active_photo_request:
+                        _log_detail({
+                            "event": "roleplay_proposal",
+                            "schema_version": 1,
+                            "valid": False,
+                            "issue": "missing_roleplay_proposal",
+                            "committed": False,
+                        })
+                        self.messages.append({
+                            "role": "assistant",
+                            "content": ROLEPLAY_TURN_FAILURE_TEXT,
+                        })
+                        return ROLEPLAY_TURN_FAILURE_TEXT
+                    response_text = self._enforce_immersion_response(message.content or "")
                     message_dump = message.model_dump()
                     message_dump["content"] = response_text
                     self.messages.append(message_dump)
@@ -2580,6 +2509,50 @@ Don't repeat this if `bot_name` already exists in memory.
                         "response_len": len(response_text),
                     })
                     # Soul Mate: side-effect affect update
+                    self._update_affect(user_input, response_text)
+                    self._maybe_clear_history_after_turn()
+                    return response_text
+
+                if roleplay_turn and not active_photo_request:
+                    before = self.roleplay.load() or {}
+                    try:
+                        response_text, candidate, beat_count = self._accept_roleplay_proposal(
+                            message,
+                            opening=roleplay_opening,
+                        )
+                    except ValueError as exc:
+                        _log_detail({
+                            "event": "roleplay_proposal",
+                            "schema_version": 1,
+                            "valid": False,
+                            "issue": str(exc),
+                            "committed": False,
+                        })
+                        self.messages.append({
+                            "role": "assistant",
+                            "content": ROLEPLAY_TURN_FAILURE_TEXT,
+                        })
+                        return ROLEPLAY_TURN_FAILURE_TEXT
+
+                    self.roleplay.commit(candidate)
+                    self.messages.append({"role": "assistant", "content": response_text})
+                    _log_detail({
+                        "event": "roleplay_proposal",
+                        "schema_version": 1,
+                        "valid": True,
+                        "committed": True,
+                        "beat_count": beat_count,
+                        "response_len": len(response_text),
+                        "turn_index_before": before.get("turn_index"),
+                        "turn_index_after": candidate.get("turn_index"),
+                    })
+                    _log_detail({
+                        "event": "response",
+                        "tool_rounds": 0,
+                        "structured_roleplay": True,
+                        "elapsed_ms": int((time.monotonic() - chat_start) * 1000),
+                        "response_len": len(response_text),
+                    })
                     self._update_affect(user_input, response_text)
                     self._maybe_clear_history_after_turn()
                     return response_text
@@ -2673,12 +2646,6 @@ Don't repeat this if `bot_name` already exists in memory.
                         "tool_call_id": tc.id,
                         "content": results[tc.id],
                     })
-                    if (
-                        tc.function.name == "update_roleplay_scene"
-                        and results[tc.id].startswith("Durable scene state updated:")
-                    ):
-                        roleplay_state_updated_this_turn = True
-
                 if any(
                     tc.function.name in {"update_roleplay_scene", "take_selfie"}
                     for tc in tool_calls
@@ -2702,7 +2669,6 @@ Don't repeat this if `bot_name` already exists in memory.
                 continue
             except Exception as exc:
                 logger.exception("Critical error in Agent.chat()")
-                rollback_roleplay_transaction()
                 return f"Error: {exc}"
 
     def chat_stream(

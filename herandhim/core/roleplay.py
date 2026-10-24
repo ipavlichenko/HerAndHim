@@ -141,6 +141,61 @@ class RoleplayTurnValidation:
     issues: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class RoleplayTurnProposal:
+    state_delta: dict
+    beats: tuple[dict[str, str], ...]
+
+
+def decode_roleplay_turn_proposal(arguments: str) -> RoleplayTurnProposal:
+    """Decode the typed model proposal without interpreting presentation syntax."""
+    try:
+        value = json.loads(arguments)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ValueError("invalid_proposal_json") from exc
+    if not isinstance(value, dict) or set(value) != {"state_delta", "beats"}:
+        raise ValueError("invalid_proposal_shape")
+    state_delta = value["state_delta"]
+    raw_beats = value["beats"]
+    if not isinstance(state_delta, dict):
+        raise ValueError("invalid_state_delta")
+    if not isinstance(raw_beats, list) or not 2 <= len(raw_beats) <= 10:
+        raise ValueError("invalid_beats")
+
+    beats: list[dict[str, str]] = []
+    kinds: set[str] = set()
+    for raw in raw_beats:
+        if not isinstance(raw, dict) or set(raw) != {"type", "text"}:
+            raise ValueError("invalid_beat_shape")
+        kind = raw.get("type")
+        if kind not in {"action", "speech"}:
+            raise ValueError("invalid_beat_type")
+        if not isinstance(raw.get("text"), str):
+            raise ValueError("invalid_beat_text")
+        # Presentation is owned by the renderer. Model-added Markdown is data,
+        # never a reason to reject an otherwise complete proposal.
+        beat_text = " ".join(raw["text"].replace("*", "").split())
+        if not beat_text:
+            raise ValueError("empty_beat_text")
+        if len(beat_text) > 1_200:
+            raise ValueError("beat_too_long")
+        beats.append({"type": kind, "text": beat_text})
+        kinds.add(kind)
+    if kinds != {"action", "speech"}:
+        raise ValueError("missing_beat_kind")
+    if sum(len(row["text"]) for row in beats) > 3_500:
+        raise ValueError("proposal_too_long")
+    return RoleplayTurnProposal(dict(state_delta), tuple(beats))
+
+
+def render_roleplay_turn(proposal: RoleplayTurnProposal) -> str:
+    """Render typed beats into the single canonical transport-neutral form."""
+    return "\n\n".join(
+        f"*{beat['text']}*" if beat["type"] == "action" else beat["text"]
+        for beat in proposal.beats
+    )
+
+
 def normalize_roleplay_turn(text: str) -> tuple[str, bool]:
     """Split balanced inline action spans into contract-compliant paragraphs.
 
@@ -321,6 +376,45 @@ ROLEPLAY_STATE_TOOL = {
     },
 }
 
+ROLEPLAY_TURN_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "propose_roleplay_turn",
+        "description": (
+            "Propose one complete Russian role-play turn and its candidate scene-state delta. "
+            "This call is the final answer: do not emit separate prose. Put no Markdown in beat "
+            "text. Actions describe only Sarah in third person; speech is Sarah's first-person "
+            "dialogue. Never invent Ilya's unspoken action, consent, speech, or feelings."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "state_delta": ROLEPLAY_STATE_TOOL["function"]["parameters"],
+                "beats": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 10,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {"type": "string", "enum": ["action", "speech"]},
+                            "text": {
+                                "type": "string",
+                                "maxLength": 1_200,
+                                "description": "Plain Russian text without Markdown markers.",
+                            },
+                        },
+                        "required": ["type", "text"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["state_delta", "beats"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 _END_RE = re.compile(
     r"^\s*(?:закончи(?:м|ть)\s+сцену|закончи\s+сцену|"
     r"выйдем\s+из\s+роли|выйти\s+из\s+роли|стоп\s+игра)\s*[.!?]*\s*$",
@@ -438,9 +532,15 @@ class RoleplaySceneStore:
         self._write(restored)
 
     def update(self, patch: dict) -> dict:
+        state = self.preview_update(patch)
+        self.commit(state)
+        return state
+
+    def preview_update(self, patch: dict, *, opening_accepted: bool = False) -> dict:
+        """Build the next state without mutating durable continuity."""
         with self._lock:
             current = self.load()
-            state = current or self.initial_state()
+            state = json.loads(json.dumps(current or self.initial_state(), ensure_ascii=False))
             for key in (
                 "phase", "location", "sarah_position", "ilya_position",
                 "sarah_clothing", "ilya_clothing", "last_beat",
@@ -457,8 +557,16 @@ class RoleplaySceneStore:
             if state.get("consent_state") == "stopped":
                 state["active"] = False
                 state["status"] = "ended"
-            self._write(state)
+            if opening_accepted:
+                state["opening_pending"] = False
+                state["turn_index"] = max(1, int(state.get("turn_index", 0)))
             return state
+
+    def commit(self, candidate: dict) -> None:
+        """Atomically commit a previously validated candidate state."""
+        if not isinstance(candidate, dict) or candidate.get("scene_id") not in _SCENARIOS_BY_ID:
+            raise ValueError("invalid role-play state candidate")
+        self._write(json.loads(json.dumps(candidate, ensure_ascii=False)))
 
     def mark_opened(self) -> None:
         with self._lock:
@@ -500,10 +608,9 @@ class RoleplaySceneStore:
             opening = (
                 " This is the text-only opening turn. " + scene["opening"]
                 + " Render this as lived action and dialogue, never as a rule list or summary. "
-                "Use 220-900 characters, at least two separate Sarah action paragraphs, "
-                "and at least one separate plain-text speech paragraph. Sarah's final speech "
-                "paragraph must contain one concrete in-character question that gives Ilya "
-                "a meaningful move. A separate complete action paragraph may follow."
+                "Use 220-900 characters across at least two action beats and one speech beat. "
+                "The final speech beat must contain one concrete in-character question that "
+                "gives Ilya a meaningful move. A complete action beat may follow it."
             )
         return (
             "## ACTIVE ROLE-PLAY SCENE (durable local state)\n"
@@ -511,14 +618,10 @@ class RoleplaySceneStore:
             "## SCENE DRAMATURGY (direction, not new established facts)\n"
             f"{dramaturgy}\n"
             "Treat this state as continuity, not as permission to control Ilya. "
-            "Write in scene form. Every action, sensation, or reaction belonging to Sarah "
-            "must be narrated in Russian third person, occupy its own paragraph, and be "
-            "enclosed in single asterisks: *Сара кладёт руку на стол.* Name Sarah in "
-            "at least the first action paragraph; later unambiguous third-person pronouns "
-            "are allowed. "
-            "Never use first-person narration inside action paragraphs. Write Sarah's spoken "
-            "dialogue as plain unformatted text in first person and separate it from action "
-            "paragraphs. Sarah has her own desire, judgment, initiative, "
+            "Return the final turn only through propose_roleplay_turn. Put each action or speech "
+            "unit in one typed beat and use plain Russian text without Markdown; the runtime owns "
+            "paragraphs and formatting. Actions narrate Sarah in third person, while speech is "
+            "Sarah's first-person dialogue. Sarah has her own desire, judgment, initiative, "
             "and boundaries; she may lead, refuse, redirect, slow down, or stop. Never narrate "
             "Ilya's unspoken decisions, consent, speech, feelings, or actions. Preserve location, "
             "positions, clothing, props, rules, and established facts until an explicit scene "
