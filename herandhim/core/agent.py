@@ -45,10 +45,13 @@ from .memory.manager import MemoryManager
 from .memory.temporal_index import TimelineEvent
 from .roleplay import (
     ROLEPLAY_STATE_TOOL,
+    ROLEPLAY_TURN_FAILURE_TEXT,
     RoleplaySceneStore,
     is_roleplay_end,
     is_roleplay_start,
+    roleplay_repair_instruction,
     roleplay_scenario_id,
+    validate_roleplay_turn,
 )
 from .skill_loader import SkillRegistry
 from .tools import (
@@ -2366,6 +2369,72 @@ Don't repeat this if `bot_name` already exists in memory.
             logger.warning("[Agent] Replaced an ordinary-dialogue immersion break")
         return guarded
 
+    def _roleplay_response_or_repair(
+        self,
+        response,
+        messages_to_send: list[dict],
+        outbound_kw: dict,
+        *,
+        opening: bool,
+    ) -> tuple[str | None, object | None]:
+        """Accept a complete scene turn or make exactly one bounded repair call."""
+
+        def inspect(candidate, attempt: int):
+            choice = candidate.choices[0]
+            message = choice.message
+            text = self._enforce_immersion_response(message.content or "")
+            result = validate_roleplay_turn(
+                text,
+                opening=opening,
+                finish_reason=getattr(choice, "finish_reason", None),
+            )
+            if getattr(message, "tool_calls", None):
+                result = type(result)(False, result.issues + ("unexpected_tool_call",))
+            _log_detail({
+                "event": "roleplay_validation",
+                "attempt": attempt,
+                "valid": result.valid,
+                "issues": list(result.issues),
+                "response_len": len(text),
+                "finish_reason": getattr(choice, "finish_reason", None),
+            })
+            return text, message, result
+
+        text, message, validation = inspect(response, 1)
+        if validation.valid:
+            return text, message
+
+        repair_messages = [
+            *messages_to_send,
+            {"role": "assistant", "content": text},
+            {
+                "role": "system",
+                "content": roleplay_repair_instruction(
+                    validation.issues,
+                    opening=opening,
+                ),
+            },
+        ]
+        try:
+            repaired = self.provider.chat(
+                messages=repair_messages,
+                tools=[],
+                tool_choice="none",
+                **outbound_kw,
+            )
+        except Exception:
+            _log_detail({
+                "event": "roleplay_validation",
+                "attempt": 2,
+                "valid": False,
+                "issues": ["repair_provider_failure"],
+            })
+            return None, None
+        repaired_text, repaired_message, repaired_validation = inspect(repaired, 2)
+        if not repaired_validation.valid:
+            return None, None
+        return repaired_text, repaired_message
+
     def chat(self, user_input: str | list, **kwargs) -> str:
         """Send *user_input* to the LLM and return the final text response.
 
@@ -2390,6 +2459,14 @@ Don't repeat this if `bot_name` already exists in memory.
             self._roleplay_started_this_turn = True
         elif is_roleplay_end(user_input):
             self.roleplay.end()
+        roleplay_turn = self.roleplay.is_active()
+        roleplay_opening = bool(
+            roleplay_turn
+            and (
+                self._roleplay_started_this_turn
+                or (self.roleplay.load() or {}).get("opening_pending")
+            )
+        )
 
         self.messages.append({"role": "user", "content": user_input})
         record_message()
@@ -2455,11 +2532,26 @@ Don't repeat this if `bot_name` already exists in memory.
                 message = response.choices[0].message
 
                 if not message.tool_calls:
-                    response_text = self._enforce_immersion_response(message.content or "")
+                    if roleplay_turn:
+                        response_text, accepted_message = self._roleplay_response_or_repair(
+                            response,
+                            messages_to_send,
+                            outbound_kw,
+                            opening=roleplay_opening,
+                        )
+                        if response_text is None or accepted_message is None:
+                            self.messages.append({
+                                "role": "assistant",
+                                "content": ROLEPLAY_TURN_FAILURE_TEXT,
+                            })
+                            return ROLEPLAY_TURN_FAILURE_TEXT
+                        message = accepted_message
+                    else:
+                        response_text = self._enforce_immersion_response(message.content or "")
                     message_dump = message.model_dump()
                     message_dump["content"] = response_text
                     self.messages.append(message_dump)
-                    if self._roleplay_started_this_turn and response_text:
+                    if roleplay_opening and response_text:
                         self.roleplay.mark_opened()
                     _log_detail({
                         "event": "response",

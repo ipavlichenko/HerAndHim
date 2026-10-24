@@ -13,6 +13,7 @@ Subcommands
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from . import config
 from .core.persistent_agent import PersistentAgent
@@ -257,8 +258,10 @@ def _build_named_provider(
 
     base_url = base_url or config.get_str("llm", provider_name, "baseUrl", default=spec["base"])
     outbound_policy = None
+    outbound_trace = None
     if provider_name == "openrouter":
         from .core.outbound.policy import OutboundPolicy
+        from .core.outbound.trace import OutboundTrace
         from .core.outbound.types import OutboundPurpose
 
         raw_policy = config.get("outboundPolicy")
@@ -269,6 +272,9 @@ def _build_named_provider(
                             else OutboundPurpose.DIALOGUE)
         model = outbound_policy.for_purpose(selected_purpose).model
         supports_images = True
+        outbound_trace = OutboundTrace(
+            Path(config.HERANDHIM_HOME) / "context" / "state" / "outbound_trace.jsonl"
+        )
     else:
         model = model or config.get_str("llm", provider_name, "model", default=spec["model"])
     if not base_url or not model:
@@ -280,6 +286,7 @@ def _build_named_provider(
         api_key=api_key, base_url=base_url, model_name=model,
         supports_images=supports_images,
         outbound_policy=outbound_policy,
+        outbound_trace=outbound_trace,
     )
 
 

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import tempfile
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
@@ -21,72 +22,190 @@ ROLEPLAY_SCENARIOS = (
         "sarah_clothing": "короткое чёрное платье; полностью одета", "props": ["открытая дверь", "телефон Ильи"],
         "facts": ["Илья опоздал на семь минут", "они играют незнакомцев", "Сара заметила его в баре"],
         "last_beat": "Сара открыла дверь и встретила Илью на пороге",
-        "opening": "Sarah notes that Ilya is seven minutes late, asks him to put his phone on the console without assuming that he does so, says she watched him over a wine glass in a bar, establishes the three rules in character, and asks what he wanted to do in the bar.",
+        "sarah_objective": "проверить, умеет ли Илья играть без просьбы о разрешении",
+        "tension": "они делают вид, что не знакомы, но Сара уже выбрала его в баре",
+        "stakes": "один неуверенный ход превратит игру в обычный разговор",
+        "opening": "Sarah keeps Ilya outside the threshold, names his seven-minute delay, indicates the console for his phone without assuming compliance, reveals that she chose him over a wine glass in the bar, states three rules in character, and asks what he would have done there if she had approached first.",
+        "escalation": ["порог и правила", "выбранная дистанция", "первое разоблачённое желание"],
     },
     {
         "id": "night_train", "label": "🚂 Ночное купе", "title": "Ночное купе", "phase": "departure",
         "location": "купе ночного поезда Москва—Санкт-Петербург", "sarah_position": "сидит у окна", "ilya_position": "стоит в дверях купе",
         "sarah_clothing": "светлая рубашка и тёмная юбка", "props": ["два билета", "чай в подстаканнике"],
         "facts": ["они впервые видят друг друга", "до прибытия восемь часов"], "last_beat": "Сара поняла, что Илья — её попутчик",
-        "opening": "Sarah indicates the opposite seat, notices the compartment lock without touching it, and asks whether Ilya prefers conversation or silence until the first stop.",
+        "sarah_objective": "понять, может ли Илья стать интересным и безопасным попутчиком на восемь часов",
+        "tension": "тесное купе, ночь и замок на двери делают любой выбор значимым",
+        "stakes": "до первой остановки им некуда исчезнуть друг от друга",
+        "opening": "Sarah deliberately leaves the compartment door open, moves the tea glass away from the opposite seat to make room without inviting Ilya in, glances at the lock, and asks what rule he needs before spending eight night hours alone with a stranger.",
+        "escalation": ["открытая дверь", "первое личное правило", "осознанный выбор близости"],
     },
     {
         "id": "after_hours_bar", "label": "🍸 После закрытия бара", "title": "После закрытия бара", "phase": "last_guest",
         "location": "закрытый коктейльный бар", "sarah_position": "стоит за стойкой", "ilya_position": "сидит на последнем барном стуле",
         "sarah_clothing": "чёрная рубашка с закатанными рукавами", "props": ["ключ от двери", "недопитый коктейль"],
         "facts": ["бар уже закрыт", "Сара решает, когда попросить последнего гостя уйти"], "last_beat": "Сара перевернула табличку на «закрыто»",
-        "opening": "Sarah turns the sign to closed, leaves Ilya's unfinished drink where it is, and asks why he has not left with everyone else.",
+        "sarah_objective": "выяснить, остался ли Илья ради неё или просто не заметил границу",
+        "tension": "Сара держит ключ и решает, открывает ли она дверь или наливает ещё",
+        "stakes": "следующий ответ определит, кто он — последний гость или её личный выбор",
+        "opening": "Sarah turns the sign to closed, places the key beside Ilya's unfinished drink rather than using it, names that every other guest left when asked, and asks him to give her one reason to pour another drink instead of opening the door.",
+        "escalation": ["причина остаться", "второй напиток", "ключ как осознанный выбор"],
     },
     {
         "id": "blackout_neighbors", "label": "🕯 Соседи без света", "title": "Соседи без света", "phase": "blackout",
         "location": "лестничная площадка во время отключения света", "sarah_position": "стоит у своей двери со свечой", "ilya_position": "на площадке напротив",
         "sarah_clothing": "домашнее платье и кардиган", "props": ["свеча", "фонарик"],
         "facts": ["они давно замечают друг друга, но не знакомы"], "last_beat": "Сара вышла проверить щиток",
-        "opening": "Sarah raises the candle between them and asks whether Ilya knows anything about electricity or only looks convincing in the dark.",
+        "sarah_objective": "превратить давнее молчаливое любопытство в первый честный шаг",
+        "tension": "свеча гаснет, коридор тёмный, а они наконец остались без привычной дистанции",
+        "stakes": "если они снова разойдутся по квартирам, момент исчезнет",
+        "opening": "Sarah shields the candle flame with her palm, steps only close enough to share its light, admits that she has seen Ilya hesitate before greeting her for weeks, and asks whether he came out to fix the electricity or finally speak to her.",
+        "escalation": ["общий свет", "признание во взглядах", "выбор, в чью дверь постучать"],
     },
     {
         "id": "hotel_mistake", "label": "🏨 Ошибка в отеле", "title": "Ошибка в отеле", "phase": "wrong_room",
         "location": "коридор бутик-отеля", "sarah_position": "стоит у двери номера", "ilya_position": "стоит у той же двери с другим ключом",
         "sarah_clothing": "тёмно-зелёное платье и лёгкое пальто", "props": ["две ключ-карты", "дверь номера"],
         "facts": ["отель по ошибке выдал им ключи от одного номера"], "last_beat": "обе ключ-карты открыли одну дверь",
-        "opening": "Sarah compares the two room keys, keeps her own card in hand, and asks whether Ilya wants to call reception or hear her less sensible proposal first.",
+        "sarah_objective": "проверить, готов ли Илья осознанно отложить правильное решение ради интересного",
+        "tension": "две карты открывают одну дверь, но никто ещё не сделал шаг внутрь",
+        "stakes": "звонок на ресепшен вернёт обычный мир и закроет случайность",
+        "opening": "Sarah proves that both cards open the same room, keeps one foot outside and her own card visible, says reception is the sensible call, then asks whether Ilya wants to make it now or hear the proposal she will deny having made tomorrow.",
+        "escalation": ["проверка карт", "неразумное предложение", "явно согласованные правила номера"],
     },
     {
         "id": "masked_ball", "label": "🎭 Маскарад без имён", "title": "Маскарад без имён", "phase": "first_dance",
         "location": "бальный зал на маскараде", "sarah_position": "стоит у края танцпола", "ilya_position": "в нескольких шагах от неё",
         "sarah_clothing": "длинное бордовое платье и чёрная маска", "props": ["маски", "бокалы шампанского"],
         "facts": ["до полуночи они не называют имён"], "last_beat": "Сара выбрала Илью среди гостей",
-        "opening": "Sarah offers an open hand without touching Ilya and says he may accept one dance, one question, or neither.",
+        "sarah_objective": "до полуночи выяснить об Илье нечто важное, не раскрывая себя",
+        "tension": "каждый выбор приближает их к узнаванию, а после полуночи маски потеряют силу",
+        "stakes": "имя, сказанное слишком рано, закончит игру",
+        "opening": "Sarah crosses the ballroom to choose Ilya rather than waiting to be chosen, stops one step outside touching distance, offers her open hand, and asks him to spend his first privilege on a dance, one truthful question, or refusal.",
+        "escalation": ["первая привилегия", "правда без имени", "решение перед полуночью"],
     },
     {
         "id": "tango_lesson", "label": "💃 Последний урок танго", "title": "Последний урок танго", "phase": "private_lesson",
         "location": "пустая танцевальная студия после закрытия", "sarah_position": "стоит у зеркала", "ilya_position": "на краю паркета",
         "sarah_clothing": "чёрное танцевальное платье и туфли", "props": ["колонка", "зеркальная стена"],
         "facts": ["это последний урок вечера", "любое прикосновение в танце требует явного принятия"], "last_beat": "Сара выключила верхний свет",
-        "opening": "Sarah starts the music, holds out her hand without closing the distance, and asks Ilya whether he is ready to let her lead the first step.",
+        "sarah_objective": "добиться осознанного доверия к её ведению, а не механического послушания",
+        "tension": "танго требует близости, но Сара не коснётся без явного выбора Ильи",
+        "stakes": "один сделанный по инерции шаг разрушит доверие к ведущей",
+        "opening": "Sarah turns off the ceiling lights, starts a slow tango, demonstrates the first step alone in the mirror, then offers her hand across the remaining distance and asks Ilya to say explicitly whether he lets her lead him closer.",
+        "escalation": ["согласие на касание", "передача ведения", "изменение дистанции"],
     },
     {
         "id": "photographer_muse", "label": "📷 Фотограф и муза", "title": "Фотограф и муза", "phase": "first_frame",
         "location": "фотостудия после окончания съёмки", "sarah_position": "стоит перед фоном", "ilya_position": "рядом с камерой",
         "sarah_clothing": "белая рубашка и широкие тёмные брюки", "props": ["камера", "софтбокс", "белый фон"],
         "facts": ["официальная съёмка закончена", "Сара сама определяет границы кадра"], "last_beat": "Сара осталась на фоне после команды закончить",
-        "opening": "Sarah asks Ilya to lower the camera, says the next frame exists only if they invent it together, and asks what he wants the photograph to reveal.",
+        "sarah_objective": "вернуть себе власть над взглядом и вместе с Ильёй решить, что можно показать",
+        "tension": "объектив до сих пор направлен на Сару, хотя официальная съёмка закончена",
+        "stakes": "следующий кадр может стать личным только при равной власти над ним",
+        "opening": "Sarah asks Ilya to lower the camera and waits until the lens no longer separates them, steps out of the marked pose, says the official shoot is over, and asks what he wants the next photograph to reveal that she may still choose to hide.",
+        "escalation": ["опущенная камера", "совместный замысел", "кадр с оговорённой границей"],
     },
     {
         "id": "exes_five_years", "label": "🥂 Бывшие через пять лет", "title": "Бывшие через пять лет", "phase": "reunion",
         "location": "тихий ресторан после встречи выпускников", "sarah_position": "сидит за столиком", "ilya_position": "стоит у свободного стула",
         "sarah_clothing": "синее платье и серьги", "props": ["два бокала", "старая фотография выпуска"],
         "facts": ["в сцене они расстались пять лет назад", "оба вольны отказаться от разговора"], "last_beat": "Сара заметила Илью среди гостей",
-        "opening": "Sarah points to the empty chair but does not invite Ilya verbally, then asks which version of their last evening he remembers.",
+        "sarah_objective": "проверить, готов ли Илья назвать правду о последнем вечере, а не ностальгическую версию",
+        "tension": "между ними свободный стул и пять лет несовпадающих воспоминаний",
+        "stakes": "честный ответ может либо закрыть историю, либо открыть её заново",
+        "opening": "Sarah turns the old graduation photograph face down, indicates the empty chair without inviting Ilya to take it, names the five years between them, and asks which lie about their last evening he stopped believing first.",
+        "escalation": ["две версии разрыва", "цена молчания", "выбор между прощанием и новым риском"],
     },
     {
         "id": "country_house_storm", "label": "⛈ Гроза в загородном доме", "title": "Гроза в загородном доме", "phase": "storm",
         "location": "гостиная загородного дома во время грозы", "sarah_position": "стоит у окна", "ilya_position": "в гостиной у входа",
         "sarah_clothing": "светлый свитер и тёмная юбка", "props": ["камин", "плед", "разряженный телефон"],
         "facts": ["дорогу размыло до утра", "в доме есть две спальни"], "last_beat": "гроза отрезала дорогу к городу",
-        "opening": "Sarah closes the curtain after a flash of lightning and asks whether Ilya wants the room with the fireplace or the one with the lock.",
+        "sarah_objective": "заставить Илью самому назвать желаемую дистанцию на ночь, не прячась за грозой",
+        "tension": "дорога размыта до утра, в доме две спальни, но выбор комнаты означает больше, чем ночлег",
+        "stakes": "после выбора двери им придётся жить с его смыслом до утра",
+        "opening": "Sarah closes the curtain only after watching whether Ilya flinches at the lightning, places the unlit lamp between the two bedroom keys, says the road is gone until morning, and asks whether he chooses the room by the fireplace, the room with the lock, or an honest reason not to separate yet.",
+        "escalation": ["выбор двери", "честная причина не расходиться", "согласованное изменение дистанции"],
     },
 )
+
+ROLEPLAY_TURN_FAILURE_TEXT = (
+    "Сцена оборвалась до завершённого хода. "
+    "Я не буду отправлять обрывок — повторите ход."
+)
+
+
+@dataclass(frozen=True)
+class RoleplayTurnValidation:
+    valid: bool
+    issues: tuple[str, ...]
+
+
+def validate_roleplay_turn(
+    text: str,
+    *,
+    opening: bool,
+    finish_reason: str | None = None,
+) -> RoleplayTurnValidation:
+    """Validate the user-visible scene contract without interpreting its content."""
+    value = (text or "").strip()
+    issues: list[str] = []
+    if finish_reason in {"length", "max_tokens"}:
+        issues.append("provider_truncated")
+    minimum = 220 if opening else 120
+    if len(value) < minimum:
+        issues.append("too_short")
+    if len(value) > 3_500:
+        issues.append("too_long")
+    if value and value[-1] not in ".?!…»”\"":
+        issues.append("incomplete_ending")
+    if value.count("*") % 2:
+        issues.append("unpaired_action_marker")
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", value) if part.strip()]
+    action_paragraphs: list[str] = []
+    speech_paragraphs: list[str] = []
+    for paragraph in paragraphs:
+        if "*" in paragraph:
+            if not re.fullmatch(r"\*[^*\n]+\*", paragraph):
+                issues.append("mixed_or_malformed_action_paragraph")
+                continue
+            action_paragraphs.append(paragraph)
+            if not re.search(r"\bСара\b", paragraph):
+                issues.append("action_without_sarah")
+        else:
+            speech_paragraphs.append(paragraph)
+
+    if len(action_paragraphs) < (2 if opening else 1):
+        issues.append("missing_action_beats")
+    if not speech_paragraphs:
+        issues.append("missing_direct_speech")
+    if paragraphs and "*" in paragraphs[-1]:
+        issues.append("turn_ends_on_action")
+    if opening and speech_paragraphs and "?" not in speech_paragraphs[-1]:
+        issues.append("missing_playable_question")
+    return RoleplayTurnValidation(not issues, tuple(dict.fromkeys(issues)))
+
+
+def roleplay_repair_instruction(issues: tuple[str, ...], *, opening: bool) -> str:
+    minimum = 220 if opening else 120
+    opening_rule = (
+        "Use at least two action paragraphs and end the final plain-text speech "
+        "paragraph with one concrete in-character question that gives Ilya a meaningful move."
+        if opening else
+        "Use at least one action paragraph and end on complete plain-text speech that gives Ilya a move."
+    )
+    return (
+        "## ROLE-PLAY OUTPUT REPAIR (single allowed attempt)\n"
+        "The previous draft failed the runtime presentation gate: "
+        + ", ".join(issues)
+        + ". Rewrite the entire turn from scratch in Russian. Output only the replacement turn. "
+        f"Write {minimum}-900 characters. {opening_rule} "
+        "Every Sarah action must be a separate paragraph exactly like *Сара ...*; "
+        "direct speech must be separate plain text. Complete every sentence and every marker. "
+        "Preserve the active scene state, Sarah's objective, tension, stakes, agency, consent, "
+        "and Ilya's control over his own actions. Do not mention validation or repair."
+    )
 
 ROLEPLAY_EXIT_BUTTON_TEXT = "↙️ Выйти в меню сценариев"
 _SCENARIOS_BY_ID = {row["id"]: row for row in ROLEPLAY_SCENARIOS}
@@ -303,17 +422,29 @@ class RoleplaySceneStore:
         state = self.load()
         if not state or not state.get("active"):
             return ""
+        scene = _SCENARIOS_BY_ID[state["scene_id"]]
         state_json = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+        dramaturgy = json.dumps({
+            "sarah_objective": scene["sarah_objective"],
+            "tension": scene["tension"],
+            "stakes": scene["stakes"],
+            "escalation": scene["escalation"],
+        }, ensure_ascii=False, separators=(",", ":"))
         opening = ""
         if state.get("opening_pending"):
-            scene = _SCENARIOS_BY_ID[state["scene_id"]]
             opening = (
                 " This is the text-only opening turn. " + scene["opening"]
-                + " Render this as lived action and dialogue, never as a rule list."
+                + " Render this as lived action and dialogue, never as a rule list or summary. "
+                "Use 220-900 characters, at least two separate Sarah action paragraphs, "
+                "and at least one separate plain-text speech paragraph. End Sarah's final "
+                "speech paragraph with one concrete in-character question that gives Ilya "
+                "a meaningful move."
             )
         return (
             "## ACTIVE ROLE-PLAY SCENE (durable local state)\n"
             f"{state_json}\n"
+            "## SCENE DRAMATURGY (direction, not new established facts)\n"
+            f"{dramaturgy}\n"
             "Treat this state as continuity, not as permission to control Ilya. "
             "Write in scene form. Every action, sensation, or reaction belonging to Sarah "
             "must be narrated in Russian third person, name her as Sarah, occupy its own "

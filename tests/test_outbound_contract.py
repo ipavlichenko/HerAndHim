@@ -138,18 +138,20 @@ def test_openrouter_builder_fails_closed_without_policy(monkeypatch):
         _build_named_provider("openrouter", api_key="k", base_url="https://openrouter.ai/api/v1")
 
 
-def test_openrouter_builder_uses_policy_model_and_declares_vision(monkeypatch):
+def test_openrouter_builder_uses_policy_model_vision_and_trace(tmp_path, monkeypatch):
     from herandhim import config
     from herandhim.main import _build_named_provider
 
     raw = policy_mapping()
     monkeypatch.setattr(config, "get", lambda *args, **kwargs: raw)
+    monkeypatch.setattr(config, "HERANDHIM_HOME", tmp_path)
     provider = _build_named_provider(
         "openrouter", api_key="k", base_url="https://openrouter.ai/api/v1",
     )
     assert provider.model_name == "vendor/dialogue"
     assert provider.supports_images is True
     assert provider.requires_outbound_purpose is True
+    assert provider._trace.path == tmp_path / "context/state/outbound_trace.jsonl"
 
 
 def test_disabled_image_purpose_does_not_block_dialogue_policy():
