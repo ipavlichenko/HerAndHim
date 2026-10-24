@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import html
 import logging
 import os
 import queue as _queue
@@ -116,6 +117,18 @@ def _model_failure_text(raw_response: str) -> str:
     return _MODEL_FAILURE_TEXT
 
 
+def _roleplay_to_html(text: str) -> str:
+    """Render paired role-play action markers as safe Telegram italics."""
+    parts = text.split("*")
+    if len(parts) % 2 == 0:
+        return html.escape(text)
+    rendered = []
+    for index, part in enumerate(parts):
+        escaped = html.escape(part)
+        rendered.append(f"<i>{escaped}</i>" if index % 2 else escaped)
+    return "".join(rendered)
+
+
 async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) -> bool:
     """Deliver one logical role-play turn as one Telegram bubble.
 
@@ -129,7 +142,11 @@ async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) 
         return await send_burst(bot, chat_id, text)
     sent = False
     for chunk in _split_message(text):
-        await bot.send_message(chat_id=chat_id, text=chunk)
+        await bot.send_message(
+            chat_id=chat_id,
+            text=_roleplay_to_html(chunk),
+            parse_mode="HTML",
+        )
         sent = True
     return sent
 

@@ -114,6 +114,9 @@ def test_scene_context_preserves_agency_continuity_and_player_control(tmp_path):
     assert "ACTIVE ROLE-PLAY SCENE" in block
     assert "Sarah has her own desire" in block
     assert "Never narrate Ilya's unspoken" in block
+    assert "Russian third person" in block
+    assert "*Сара кладёт руку на стол.*" in block
+    assert "plain unformatted text in first person" in block
     for word in ("location", "positions", "clothing", "props", "rules"):
         assert word in block
 
@@ -236,7 +239,7 @@ def test_start_transaction_sends_fixed_door_photo_then_opening_prose(
             "scene_hint": "wrong scene",
             "caption": "wrong caption",
         })]),
-        _Message(content="*Я остаюсь у открытой двери.* Ты опоздал на семь минут."),
+        _Message(content="*Сара остаётся у открытой двери.* Ты опоздал на семь минут."),
     ])
     agent = Agent(
         provider,
@@ -282,11 +285,23 @@ def test_roleplay_delivery_is_one_atomic_telegram_message(monkeypatch):
         return True
 
     monkeypatch.setattr(module, "send_burst", _burst)
-    text = "*Я открываю дверь.*\n\nСемь минут.\n\nЗаходи."
+    text = "*Сара открывает дверь.*\n\nСемь минут. <Заходи>."
 
     assert asyncio.run(module._send_companion_text(bot, 42, text, roleplay=True))
-    assert bot.sent == [{"chat_id": 42, "text": text}]
+    assert bot.sent == [{
+        "chat_id": 42,
+        "text": "<i>Сара открывает дверь.</i>\n\nСемь минут. &lt;Заходи&gt;.",
+        "parse_mode": "HTML",
+    }]
     assert burst_calls == []
+
+
+def test_unpaired_roleplay_marker_is_escaped_without_inventing_formatting():
+    from herandhim.channels.telegram_bot import _roleplay_to_html
+
+    assert _roleplay_to_html("Сара *смотрит <прямо>") == (
+        "Сара *смотрит &lt;прямо&gt;"
+    )
 
 
 def test_ordinary_companion_delivery_retains_humanized_burst(monkeypatch):
