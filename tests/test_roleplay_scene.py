@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from threading import Lock
 from types import SimpleNamespace
@@ -7,7 +8,6 @@ from types import SimpleNamespace
 from herandhim.core.agent import Agent
 from herandhim.core.roleplay import (
     ROLEPLAY_SCENE_ID,
-    ROLEPLAY_SELFIE_CAPTION,
     ROLEPLAY_SELFIE_HINT,
     ROLEPLAY_START_REQUEST,
     RoleplaySceneStore,
@@ -100,7 +100,7 @@ def test_roleplay_start_forces_selfie_and_runtime_overrides_model_arguments(
     assert agent._execute_tool_call(call) == "sent"
     assert captured == [{
         "scene_hint": ROLEPLAY_SELFIE_HINT,
-        "caption": ROLEPLAY_SELFIE_CAPTION,
+        "caption": "",
         "session_id": "telegram:42",
     }]
 
@@ -257,8 +257,49 @@ def test_start_transaction_sends_fixed_door_photo_then_opening_prose(
     assert dialogue_calls[1]["tool_choice"] == "none"
     assert sent == [{
         "scene_hint": ROLEPLAY_SELFIE_HINT,
-        "caption": ROLEPLAY_SELFIE_CAPTION,
+        "caption": "",
         "session_id": "telegram:42",
     }]
     assert "опоздал на семь" in reply
     assert agent.roleplay.load()["opening_pending"] is False
+
+
+def test_roleplay_delivery_is_one_atomic_telegram_message(monkeypatch):
+    from herandhim.channels import telegram_bot as module
+
+    class _Bot:
+        def __init__(self):
+            self.sent = []
+
+        async def send_message(self, **kwargs):
+            self.sent.append(kwargs)
+
+    bot = _Bot()
+    burst_calls = []
+
+    async def _burst(*args):
+        burst_calls.append(args)
+        return True
+
+    monkeypatch.setattr(module, "send_burst", _burst)
+    text = "*Я открываю дверь.*\n\nСемь минут.\n\nЗаходи."
+
+    assert asyncio.run(module._send_companion_text(bot, 42, text, roleplay=True))
+    assert bot.sent == [{"chat_id": 42, "text": text}]
+    assert burst_calls == []
+
+
+def test_ordinary_companion_delivery_retains_humanized_burst(monkeypatch):
+    from herandhim.channels import telegram_bot as module
+
+    calls = []
+
+    async def _burst(*args):
+        calls.append(args)
+        return True
+
+    monkeypatch.setattr(module, "send_burst", _burst)
+
+    assert asyncio.run(module._send_companion_text(object(), 42, "one\n\ntwo", roleplay=False))
+    assert len(calls) == 1
+    assert calls[0][1:] == (42, "one\n\ntwo")

@@ -23,7 +23,9 @@ ROLEPLAY_SELFIE_HINT = (
     "with calm confidence and restrained invitation. Warm cinematic hallway light, "
     "realistic vertical full-body smartphone photo, safe-for-work, no nudity."
 )
-ROLEPLAY_SELFIE_CAPTION = "Ты всё-таки пришёл. Заходи, незнакомец."
+# The opening prose follows immediately after the delivered photo. Keeping the
+# image caption empty avoids repeating the same arrival beat twice.
+ROLEPLAY_SELFIE_CAPTION = ""
 
 ROLEPLAY_START_REQUEST = (
     f"{ROLEPLAY_START_SENTINEL}\n"

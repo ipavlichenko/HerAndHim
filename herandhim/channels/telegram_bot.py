@@ -116,6 +116,24 @@ def _model_failure_text(raw_response: str) -> str:
     return _MODEL_FAILURE_TEXT
 
 
+async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) -> bool:
+    """Deliver one logical role-play turn as one Telegram bubble.
+
+    Ordinary companion chat retains the humanized 1–3 bubble burst. A role-play
+    turn must stay atomic: otherwise the user can reply between parts and the
+    remaining bubbles appear after their message, looking like duplicated or
+    competing answers. Telegram's hard 4096-character limit is the sole reason
+    an unusually long scene turn may still require multiple messages.
+    """
+    if not roleplay:
+        return await send_burst(bot, chat_id, text)
+    sent = False
+    for chunk in _split_message(text):
+        await bot.send_message(chat_id=chat_id, text=chunk)
+        sent = True
+    return sent
+
+
 class TelegramBot:
     """
     Telegram channel — pure I/O layer.
@@ -593,7 +611,13 @@ class TelegramBot:
                             sent_voice = await self._maybe_send_voice_reply(chat_id, text)
                         if not sent_voice:
                             if is_companion:
-                                await send_burst(context.bot, chat_id, text)
+                                roleplay = getattr(agent, "roleplay", None)
+                                await _send_companion_text(
+                                    context.bot,
+                                    chat_id,
+                                    text,
+                                    roleplay=bool(roleplay and roleplay.is_active()),
+                                )
                             else:
                                 for chunk in _split_message(text):
                                     await update.message.reply_text(chunk)
