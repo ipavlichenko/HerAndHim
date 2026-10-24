@@ -141,6 +141,60 @@ class RoleplayTurnValidation:
     issues: tuple[str, ...]
 
 
+def normalize_roleplay_turn(text: str) -> tuple[str, bool]:
+    """Split balanced inline action spans into contract-compliant paragraphs.
+
+    This is deliberately presentation-only: it preserves the order and wording
+    of every action and speech fragment. Odd or empty markers stay untouched so
+    the validator can fail closed rather than guessing the author's intent.
+    """
+    value = (text or "").strip()
+    if not value:
+        return value, False
+
+    normalized: list[str] = []
+    changed = False
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", value) if part.strip()]
+    for paragraph in paragraphs:
+        if "*" not in paragraph or re.fullmatch(r"\*[^*\n]+\*", paragraph):
+            normalized.append(paragraph)
+            continue
+        if paragraph.count("*") % 2:
+            normalized.append(paragraph)
+            continue
+
+        matches = list(re.finditer(r"\*([^*]+)\*", paragraph))
+        if not matches or len(matches) * 2 != paragraph.count("*"):
+            normalized.append(paragraph)
+            continue
+
+        fragments: list[str] = []
+        cursor = 0
+        for match in matches:
+            outside = paragraph[cursor:match.start()].strip()
+            if outside:
+                fragments.append(outside)
+            action = " ".join(match.group(1).split())
+            if not action:
+                fragments = []
+                break
+            fragments.append(f"*{action}*")
+            cursor = match.end()
+        tail = paragraph[cursor:].strip()
+        if tail:
+            fragments.append(tail)
+        if not fragments:
+            normalized.append(paragraph)
+            continue
+        normalized.extend(fragments)
+        changed = True
+
+    result = "\n\n".join(normalized)
+    if not changed or result == value:
+        return value, False
+    return result, True
+
+
 def validate_roleplay_turn(
     text: str,
     *,
@@ -375,6 +429,13 @@ class RoleplaySceneStore:
         state = self.initial_state(scene_id)
         self._write(state)
         return state
+
+    def restore(self, snapshot: dict) -> None:
+        """Atomically restore a trusted snapshot captured by :meth:`load`."""
+        if not isinstance(snapshot, dict) or snapshot.get("scene_id") not in _SCENARIOS_BY_ID:
+            raise ValueError("invalid role-play state snapshot")
+        restored = json.loads(json.dumps(snapshot, ensure_ascii=False))
+        self._write(restored)
 
     def update(self, patch: dict) -> dict:
         with self._lock:

@@ -49,6 +49,7 @@ from .roleplay import (
     RoleplaySceneStore,
     is_roleplay_end,
     is_roleplay_start,
+    normalize_roleplay_turn,
     roleplay_repair_instruction,
     roleplay_scenario_id,
     validate_roleplay_turn,
@@ -2383,6 +2384,7 @@ Don't repeat this if `bot_name` already exists in memory.
             choice = candidate.choices[0]
             message = choice.message
             text = self._enforce_immersion_response(message.content or "")
+            text, normalized = normalize_roleplay_turn(text)
             result = validate_roleplay_turn(
                 text,
                 opening=opening,
@@ -2395,6 +2397,7 @@ Don't repeat this if `bot_name` already exists in memory.
                 "attempt": attempt,
                 "valid": result.valid,
                 "issues": list(result.issues),
+                "normalized": normalized,
                 "response_len": len(text),
                 "finish_reason": getattr(choice, "finish_reason", None),
             })
@@ -2468,7 +2471,23 @@ Don't repeat this if `bot_name` already exists in memory.
             )
         )
 
-        self.messages.append({"role": "user", "content": user_input})
+        turn_message_start = len(self.messages)
+        user_message = {"role": "user", "content": user_input}
+        roleplay_state_before_turn = (
+            self.roleplay.load()
+            if roleplay_turn and not self._roleplay_started_this_turn
+            else None
+        )
+        roleplay_state_updated_this_turn = False
+
+        def rollback_roleplay_transaction() -> None:
+            if not roleplay_state_updated_this_turn or roleplay_state_before_turn is None:
+                return
+            self.roleplay.restore(roleplay_state_before_turn)
+            del self.messages[turn_message_start:]
+            self.messages.append(dict(user_message))
+
+        self.messages.append(user_message)
         record_message()
 
         _log_detail({
@@ -2540,6 +2559,7 @@ Don't repeat this if `bot_name` already exists in memory.
                             opening=roleplay_opening,
                         )
                         if response_text is None or accepted_message is None:
+                            rollback_roleplay_transaction()
                             self.messages.append({
                                 "role": "assistant",
                                 "content": ROLEPLAY_TURN_FAILURE_TEXT,
@@ -2653,6 +2673,11 @@ Don't repeat this if `bot_name` already exists in memory.
                         "tool_call_id": tc.id,
                         "content": results[tc.id],
                     })
+                    if (
+                        tc.function.name == "update_roleplay_scene"
+                        and results[tc.id].startswith("Durable scene state updated:")
+                    ):
+                        roleplay_state_updated_this_turn = True
 
                 if any(
                     tc.function.name in {"update_roleplay_scene", "take_selfie"}
@@ -2677,6 +2702,7 @@ Don't repeat this if `bot_name` already exists in memory.
                 continue
             except Exception as exc:
                 logger.exception("Critical error in Agent.chat()")
+                rollback_roleplay_transaction()
                 return f"Error: {exc}"
 
     def chat_stream(

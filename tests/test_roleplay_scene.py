@@ -13,6 +13,7 @@ from herandhim.core.roleplay import (
     RoleplaySceneStore,
     is_roleplay_end,
     is_roleplay_start,
+    normalize_roleplay_turn,
     roleplay_repair_instruction,
     roleplay_scenario_id,
     roleplay_start_request,
@@ -193,6 +194,37 @@ def test_roleplay_validator_accepts_complete_opening_and_turn():
     assert "220-900" in instruction
 
 
+def test_roleplay_normalizer_splits_balanced_mixed_action_and_speech():
+    mixed = (
+        "*Сара наклоняется ближе.* — Я не буду решать за тебя и не сделаю вид, "
+        "что не заметила твой шаг. Скажи мне честно, чего ты хочешь? "
+        "*Она оставляет ему выбор.*"
+    )
+
+    normalized, changed = normalize_roleplay_turn(mixed)
+
+    assert changed is True
+    assert normalized == (
+        "*Сара наклоняется ближе.*\n\n"
+        "— Я не буду решать за тебя и не сделаю вид, что не заметила твой шаг. "
+        "Скажи мне честно, чего ты хочешь?\n\n"
+        "*Она оставляет ему выбор.*"
+    )
+    assert validate_roleplay_turn(normalized, opening=False).valid
+
+
+def test_roleplay_normalizer_does_not_guess_unpaired_markers():
+    malformed = "*Сара смотрит на Илью. — Скажи, чего ты хочешь?"
+
+    normalized, changed = normalize_roleplay_turn(malformed)
+
+    assert changed is False
+    assert normalized == malformed
+    assert "unpaired_action_marker" in validate_roleplay_turn(
+        normalized, opening=False,
+    ).issues
+
+
 def test_active_turn_may_end_on_a_complete_action_beat():
     turn = (
         "*Сара отступает от стола и оставляет из двух стульев тот, что ближе к камину.*\n\n"
@@ -349,6 +381,72 @@ def test_active_turn_can_use_third_and_final_call_for_one_repair(tmp_path, monke
     assert dialogue_calls[2]["tool_choice"] == "none"
     assert dialogue_calls[2]["tools"] == []
     assert len({call["outbound_request_group"] for call in dialogue_calls}) == 1
+
+
+def test_active_turn_accepts_normalized_first_draft_without_repair(tmp_path, monkeypatch):
+    from herandhim.core import agent as agent_module
+    from herandhim.core import quota
+
+    mixed = (
+        "*Сара остаётся у двери.* — Я не буду решать за тебя и не сделаю вид, "
+        "что не заметила твой шаг. Скажи, какую дистанцию ты выбираешь?"
+    )
+    provider = _Provider([
+        _Message(tool_calls=[_tool_call("update_roleplay_scene", {
+            "phase": "hallway", "last_beat": "Илья ответил", "consent_state": "mutual",
+        })]),
+        _Message(content=mixed),
+    ])
+    monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
+    monkeypatch.setattr(quota, "check_messages", lambda: None)
+    monkeypatch.setattr(quota, "record_message", lambda: None)
+    agent = Agent(
+        provider, session_id="telegram:42", memory_dir=str(tmp_path / "memory"),
+        skills_dirs=[], knowledge_path=str(tmp_path / "knowledge"),
+        persona_path=str(tmp_path / "persona"), soul_path=str(tmp_path / "soul"),
+        auto_compaction=False,
+    )
+    agent.roleplay.start()
+    agent.roleplay.mark_opened()
+
+    reply = agent.chat("Я отвечаю и жду")
+
+    assert reply == normalize_roleplay_turn(mixed)[0]
+    assert len([call for call in provider.calls if call.get("purpose") == "dialogue"]) == 2
+
+
+def test_failed_active_turn_rolls_back_state_and_hidden_tool_history(tmp_path, monkeypatch):
+    from herandhim.core import agent as agent_module
+    from herandhim.core import quota
+
+    provider = _Provider([
+        _Message(tool_calls=[_tool_call("update_roleplay_scene", {
+            "phase": "advanced", "last_beat": "скрытое продвижение", "consent_state": "check_in",
+        })]),
+        _Message(content="*Сара замирает"),
+        _Message(content="*Сара всё ещё замирает"),
+    ])
+    monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
+    monkeypatch.setattr(quota, "check_messages", lambda: None)
+    monkeypatch.setattr(quota, "record_message", lambda: None)
+    agent = Agent(
+        provider, session_id="telegram:42", memory_dir=str(tmp_path / "memory"),
+        skills_dirs=[], knowledge_path=str(tmp_path / "knowledge"),
+        persona_path=str(tmp_path / "persona"), soul_path=str(tmp_path / "soul"),
+        auto_compaction=False,
+    )
+    agent.roleplay.start()
+    agent.roleplay.mark_opened()
+    before = agent.roleplay.load()
+    history_start = len(agent.messages)
+
+    reply = agent.chat("Я делаю следующий ход")
+
+    assert reply == ROLEPLAY_TURN_FAILURE_TEXT
+    assert agent.roleplay.load() == before
+    turn_history = agent.messages[history_start:]
+    assert [row["role"] for row in turn_history] == ["user", "assistant"]
+    assert "скрытое продвижение" not in json.dumps(turn_history, ensure_ascii=False)
 
 
 def test_start_transaction_is_one_text_call_without_photo(tmp_path, monkeypatch):
