@@ -39,6 +39,86 @@
       "model": ""
     }
   },
+  "outboundPolicy": {
+    "version": 1,
+    "traceRetentionDays": 30,
+    "aggregateRetentionDays": 180,
+    "openrouter": {
+      "requireAccountPromptLoggingDisabled": true,
+      "requireAccountZdr": true,
+      "requireNonZeroKeyCreditLimit": true
+    },
+    "purposes": {
+      "dialogue": {
+        "model": "REQUIRED_EXACT_ID",
+        "allowedProviders": ["REQUIRED"],
+        "activeProvider": "REQUIRED",
+        "maxInputTokensEstimated": 12000,
+        "maxOutputTokens": 1600,
+        "maxCallsPerTurn": 4,
+        "connectTimeoutSeconds": 5,
+        "firstByteTimeoutSeconds": 20,
+        "totalTimeoutSeconds": 90,
+        "maxCostUsdPerCall": 0,
+        "maxCostUsdPerDay": 0
+      },
+      "vision": {
+        "model": "REQUIRED_EXACT_ID",
+        "allowedProviders": ["REQUIRED"],
+        "activeProvider": "REQUIRED",
+        "maxInputTokensEstimated": 6000,
+        "maxOutputTokens": 400,
+        "maxCallsPerTurn": 1,
+        "connectTimeoutSeconds": 5,
+        "firstByteTimeoutSeconds": 30,
+        "totalTimeoutSeconds": 90,
+        "maxCostUsdPerCall": 0,
+        "maxCostUsdPerDay": 0
+      },
+      "image_generation": {
+        "transport": "images_api",
+        "model": "bytedance-seed/seedream-5-0-flash",
+        "resolution": "1K",
+        "aspectRatio": "2:3",
+        "maxImages": 1,
+        "allowedReferenceAssets": ["REQUIRED_LOCAL_CANONICAL_REFERENCE_PATH"],
+        "maxInputTokensEstimated": 6000,
+        "maxOutputTokens": 0,
+        "maxCallsPerTurn": 1,
+        "connectTimeoutSeconds": 5,
+        "firstByteTimeoutSeconds": 60,
+        "totalTimeoutSeconds": 180,
+        "maxCostUsdPerCall": 0,
+        "maxCostUsdPerDay": 0
+      },
+      "memory_consolidation": {
+        "model": "REQUIRED_EXACT_ID",
+        "allowedProviders": ["REQUIRED"],
+        "activeProvider": "REQUIRED",
+        "maxInputTokensEstimated": 3000,
+        "maxOutputTokens": 800,
+        "maxCallsPerWrite": 1,
+        "connectTimeoutSeconds": 5,
+        "firstByteTimeoutSeconds": 15,
+        "totalTimeoutSeconds": 30,
+        "maxCostUsdPerCall": 0,
+        "maxCostUsdPerDay": 0
+      },
+      "relationship_analysis": {
+        "model": "REQUIRED_EXACT_ID",
+        "allowedProviders": ["REQUIRED"],
+        "activeProvider": "REQUIRED",
+        "maxInputTokensEstimated": 2000,
+        "maxOutputTokens": 256,
+        "maxCallsPerTurn": 1,
+        "connectTimeoutSeconds": 5,
+        "firstByteTimeoutSeconds": 15,
+        "totalTimeoutSeconds": 30,
+        "maxCostUsdPerCall": 0,
+        "maxCostUsdPerDay": 0
+      }
+    }
+  },
   "tavily": {
     "apiKey": ""
   },
@@ -46,7 +126,7 @@
     "apiKey": ""
   },
   "stt": {
-    "provider": "auto",
+    "provider": "openai",
     "local": {
       "model": "base",
       "device": "cpu",
@@ -54,12 +134,27 @@
       "language": "auto"
     }
   },
+  "openaiAudio": {
+    "apiKey": "",
+    "model": "gpt-transcribe",
+    "language": "ru",
+    "maxCostUsdPerCall": 0.01,
+    "maxCostUsdPerDay": 0.10
+  },
   "tts": {
-    "provider": "auto",
+    "provider": "google_cloud",
     "local": {
       "engine": "piper",
       "voice": "zh_CN-huayan-medium"
     }
+  },
+  "googleCloudTts": {
+    "apiKey": "",
+    "region": "eu",
+    "voice": "ru-RU-Chirp3-HD-Zephyr",
+    "audioEncoding": "OGG_OPUS",
+    "maxCostUsdPerCall": 0.012,
+    "maxCostUsdPerDay": 0.50
   },
   "elevenlabs": {
     "apiKey": "",
@@ -136,7 +231,7 @@
     },
     "openrouter": {
       "apiKey": "",
-      "model": "google/gemini-2.5-flash-image"
+      "model": "bytedance-seed/seedream-5-0-flash"
     },
     "bfl": {
       "apiKey": "",
@@ -183,9 +278,7 @@
   "proactive": {
     "enabled": true,
     "chatId": null,
-    "maxDaily": 6,
-    "quietStart": 0,
-    "quietEnd": 8
+    "maxDaily": 6
   },
   "agent": {
     "autoCompactThreshold": 0,

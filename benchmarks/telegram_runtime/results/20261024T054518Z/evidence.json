@@ -1,0 +1,44 @@
+{
+  "status": "PASS",
+  "timestamp_utc": "2026-10-24T05:45:18.621659+00:00",
+  "bot_username": "sara_herandhim_bot",
+  "authorized_messages": 3,
+  "attempts": [
+    {
+      "ordinal": 1,
+      "kind": "text",
+      "status": "delivered",
+      "started_at_utc": "2026-10-24T05:45:19.157766+00:00",
+      "finished_at_utc": "2026-10-24T05:45:19.348400+00:00"
+    },
+    {
+      "ordinal": 2,
+      "kind": "voice",
+      "status": "delivered",
+      "started_at_utc": "2026-10-24T05:45:19.349718+00:00",
+      "finished_at_utc": "2026-10-24T05:45:19.922617+00:00"
+    },
+    {
+      "ordinal": 3,
+      "kind": "image",
+      "status": "delivered",
+      "started_at_utc": "2026-10-24T05:45:19.923581+00:00",
+      "finished_at_utc": "2026-10-24T05:45:20.156101+00:00"
+    }
+  ],
+  "model_calls": 0,
+  "provider_calls": 0,
+  "automatic_retries": 0,
+  "fallbacks": 0,
+  "fixtures": {
+    "voice": {
+      "bytes": 388145,
+      "sha256": "0b1254cc9afd0ae341b3d68afbf0be76f1f07dbc06df59730802ff05deabd1c7"
+    },
+    "image": {
+      "bytes": 159705,
+      "sha256": "5ad5da8e0c43c5e710f32d8b431538c8cda1ca48d41eb3648d9baf27cbd9202f"
+    }
+  },
+  "finished_at_utc": "2026-10-24T05:45:20.157620+00:00"
+}

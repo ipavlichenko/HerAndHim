@@ -1,10 +1,10 @@
 """
-Probabilistic proactive messaging for HerAndHim — with Soul Mate emotional gating.
+Contextual proactive messaging for HerAndHim.
 
-Instead of fixed time slots, a cron job fires every 5 minutes (288 ticks/day).
-Each tick rolls a probability of 2/288 – 5/288 to decide whether to send a
-message.  Quiet hours (default 0:00–8:00) are skipped entirely.
-Daily cap (default 6) prevents over-messaging.
+A cron job wakes the evaluator every 5 minutes; it does not decide whether a
+message is sent.  The evaluator can return no-op from relationship, unfinished
+thread, personal-date, silence and probabilistic context.  The daily ceiling is
+a technical runaway circuit breaker, not a product-level messaging policy.
 
 Soul Mate Phase 1 upgrades:
   - Sentiment-aware gating: higher probability when user seems down
@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -32,13 +33,22 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .. import config
 from ..core import lang as _lang
-from ..core import proactive_state as _pstate
 
 if TYPE_CHECKING:
     from ..channels.telegram_bot import TelegramBot
     from ..session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ProactiveEvaluation:
+    action: str
+    reason: str
+
+    @property
+    def should_generate(self) -> bool:
+        return self.action == "generate"
 
 _WEEKDAYS_ZH = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 _WEEKDAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -368,9 +378,17 @@ class ProactiveMessenger:
         self,
         session_manager: "SessionManager",
         telegram_bot: "TelegramBot",
+        transport_store=None,
     ) -> None:
+        from ..core.telegram_transport import TelegramTransportStore
+
         self._sm = session_manager
         self._telegram_bot = telegram_bot
+        self._transport = (
+            transport_store
+            or getattr(telegram_bot, "_transport", None)
+            or TelegramTransportStore()
+        )
         self._today: date | None = None
         self._today_count: int = 0
         self._running_tick: bool = False
@@ -387,14 +405,12 @@ class ProactiveMessenger:
 
     @staticmethod
     def _max_daily() -> int:
+        """Technical circuit breaker against a runaway evaluator loop."""
         return config.get_int("proactive", "maxDaily", default=6)
 
     @staticmethod
-    def _quiet_range() -> tuple[int, int]:
-        """Return (start_hour, end_hour) for quiet hours (no messages)."""
-        start = config.get_int("proactive", "quietStart", default=0)
-        end = config.get_int("proactive", "quietEnd", default=8)
-        return start, end
+    def _max_unanswered() -> int:
+        return config.get_int("proactive", "maxUnanswered", default=2)
 
     @staticmethod
     def _prob_range() -> tuple[float, float]:
@@ -409,13 +425,6 @@ class ProactiveMessenger:
             self._today = today
             self._today_count = 0
 
-    def _in_quiet_hours(self, hour: int) -> bool:
-        start, end = self._quiet_range()
-        if start <= end:
-            return start <= hour < end
-        # Wrapping range (e.g. 23 – 7)
-        return hour >= start or hour < end
-
     async def _tick(self, chat_id: int) -> None:
         """Called every 5 minutes by APScheduler."""
         if self._running_tick:
@@ -423,13 +432,45 @@ class ProactiveMessenger:
             return
         self._running_tick = True
         try:
-            now = datetime.now()
-            self._reset_if_new_day(now.date())
+            now = datetime.now().astimezone()
+            session_id = self._chat_session_id(chat_id)
 
+            # Resume accepted image delivery after restart before applying
+            # proactive controls.  The media outbox itself distinguishes an
+            # explicit owner request (which must remain deliverable) from a
+            # proactive attachment (which still obeys silence/kill switches).
+            deliver_media = getattr(self._telegram_bot, "_deliver_pending_photo", None)
+            if callable(deliver_media) and await deliver_media(session_id):
+                return
+
+            # Explicit owner silence is checked before proactive text recovery
+            # and before any evaluator/LLM work.
+            if self._transport.silence_active(session_id, now=now):
+                logger.info("[Proactive] no-op: active owner silence boundary")
+                return
+
+            # Recover a previously accepted candidate before considering a new
+            # one.  The durable outbox is what makes restart recovery possible.
+            if await self._deliver_pending(session_id):
+                return
+
+            # Operator kill switch stops delivery and prevents new inference;
+            # queued state is retained for a later resume.
+            if not self._transport.delivery_enabled():
+                logger.info("[Proactive] no-op: delivery kill switch is off")
+                return
+
+            self._reset_if_new_day(now.date())
+            state = self._transport.proactive_status(session_id, now=now)
+            self._today_count = int(state["delivered_today"])
             if self._today_count >= self._max_daily():
                 return
 
-            if self._in_quiet_hours(now.hour):
+            personal_date = bool(_todays_personal_dates())
+            if int(state["unanswered"]) >= self._max_unanswered() and (
+                not personal_date or bool(state["personal_date_sent_today"])
+            ):
+                logger.info("[Proactive] no-op: unanswered message boundary")
                 return
 
             # ── Wishlist preempt: if a wish is due, surface it instead of
@@ -447,43 +488,47 @@ class ProactiveMessenger:
             agent = self._sm.get(session_id)
             sentiment_ctx = _get_sentiment_context(agent) if agent else {}
 
-            # ── Personal dates preempt ──────────────────────────────────────
-            # Their birthday / an interview today is the one thing that must
-            # never be lost to a dice roll. Quiet hours and the daily cap above
-            # still apply, so it lands on the first eligible morning tick.
-            if _todays_personal_dates():
-                logger.info("[Proactive] Personal date today — bypassing the roll.")
-                await self._generate_and_send(chat_id, now, sentiment_ctx)
-                return
-
-            # Boost probability if user seems down
-            if sentiment_ctx.get("sentiment") == "negative":
-                threshold *= _NEGATIVE_SENTIMENT_BOOST
-                logger.debug(
-                    "[Proactive] Negative sentiment detected — boosting threshold to %.4f",
-                    threshold,
-                )
-
-            # Boost probability if long silence
-            hours_since = sentiment_ctx.get("hours_since_last", 999)
-            if hours_since > _LONG_SILENCE_HOURS:
-                threshold *= 1.5
-                logger.debug(
-                    "[Proactive] Long silence (%.1f h) — boosting threshold to %.4f",
-                    hours_since, threshold,
-                )
-
-            roll = random.random()
-            if roll > threshold:
-                return
-
-            logger.info(
-                "[Proactive] Tick hit! (roll=%.4f <= %.4f) — sending message #%d today.",
-                roll, threshold, self._today_count + 1,
+            evaluation = self._evaluate(
+                sentiment_ctx,
+                threshold,
+                unanswered=int(state["unanswered"]),
+                personal_date=personal_date,
+                personal_date_already_sent=bool(state["personal_date_sent_today"]),
             )
-            await self._generate_and_send(chat_id, now, sentiment_ctx)
+            if not evaluation.should_generate:
+                logger.debug("[Proactive] no-op: %s", evaluation.reason)
+                return
+            logger.info("[Proactive] evaluator accepted: %s", evaluation.reason)
+            await self._generate_and_send(
+                chat_id, now, sentiment_ctx,
+                reason="personal_date" if personal_date else "contextual",
+            )
         finally:
             self._running_tick = False
+
+    def _evaluate(
+        self,
+        sentiment_ctx: dict[str, Any],
+        threshold: float,
+        *,
+        unanswered: int = 0,
+        personal_date: bool | None = None,
+        personal_date_already_sent: bool = False,
+    ) -> ProactiveEvaluation:
+        """Contextual evaluator.  It has no delivery side effects."""
+        personal_date = bool(_todays_personal_dates()) if personal_date is None else personal_date
+        if personal_date and not personal_date_already_sent:
+            return ProactiveEvaluation("generate", "personal_date")
+        if unanswered >= self._max_unanswered():
+            return ProactiveEvaluation("no-op", "unanswered_boundary")
+        if sentiment_ctx.get("sentiment") == "negative":
+            threshold *= _NEGATIVE_SENTIMENT_BOOST
+        if sentiment_ctx.get("hours_since_last", 999) > _LONG_SILENCE_HOURS:
+            threshold *= 1.5
+        roll = random.random()
+        if roll > threshold:
+            return ProactiveEvaluation("no-op", f"roll={roll:.4f}>threshold={threshold:.4f}")
+        return ProactiveEvaluation("generate", f"roll={roll:.4f}<=threshold={threshold:.4f}")
 
     # ── Message generation & delivery ────────────────────────────────────────
 
@@ -492,6 +537,8 @@ class ProactiveMessenger:
         chat_id: int,
         now: datetime,
         sentiment_ctx: dict[str, Any] | None = None,
+        *,
+        reason: str = "contextual",
     ) -> None:
         session_id = self._chat_session_id(chat_id)
         agent = self._sm.get_or_create(session_id)
@@ -524,21 +571,35 @@ class ProactiveMessenger:
         text = (response or "").strip()
         if not text:
             return
+        self._transport.enqueue(session_id, chat_id, text, reason=reason)
+        await self._deliver_pending(session_id)
 
+    async def _deliver_pending(self, session_id: str) -> bool:
+        """Claim then send one queued message using at-most-once attempt semantics."""
+        delivery = self._transport.claim_next(session_id)
+        if delivery is None:
+            return False
         try:
-            await self._telegram_bot.send_message(chat_id, text)
-            self._today_count += 1
-            _pstate.record_sent(session_id)
-            logger.info(
-                "[Proactive] Delivered message #%d to chat %s.",
-                self._today_count, chat_id,
-            )
+            await self._telegram_bot.send_message(delivery.chat_id, delivery.text)
         except Exception as exc:
-            logger.error("[Proactive] Telegram delivery failed: %s", exc)
-            return
-
-        # Optionally attach a selfie — gated by config probability and Seedream key.
-        await self._maybe_send_selfie(chat_id)
+            # ``attempted`` is terminal by design: retrying an ambiguous
+            # Telegram request could duplicate a message already accepted by
+            # the provider.
+            logger.error("[Proactive] Telegram delivery attempt failed: %s", exc)
+            return False
+        self._transport.mark_delivered(delivery.id)
+        state = self._transport.record_proactive_delivered(
+            session_id, reason=delivery.reason,
+        )
+        self._today_count = int(state["delivered_today"])
+        logger.info(
+            "[Proactive] Delivered message #%d to chat %s (delivery=%s).",
+            self._today_count,
+            delivery.chat_id,
+            delivery.id,
+        )
+        await self._maybe_send_selfie(delivery.chat_id)
+        return True
 
     async def _maybe_send_wish(self, chat_id: int, now: datetime) -> bool:
         """If a pending wish scores high enough, surface it and return True.
@@ -576,17 +637,16 @@ class ProactiveMessenger:
         text = (response or "").strip()
         if not text:
             return False
-
+        delivery = self._transport.enqueue(session_id, chat_id, text, reason="wishlist")
         try:
-            await self._telegram_bot.send_message(chat_id, text)
-            self._today_count += 1
-            _pstate.record_sent(session_id)
-            wl.mark_surfaced(wish.id)
-            logger.info(
-                "[Proactive] Surfaced wish #%d to chat %s (id=%s)",
-                self._today_count, chat_id, wish.id,
-            )
-            return True
+            delivered = await self._deliver_pending(session_id)
+            if delivered:
+                wl.mark_surfaced(wish.id)
+                logger.info(
+                    "[Proactive] Surfaced wish #%d to chat %s (id=%s, delivery=%s)",
+                    self._today_count, chat_id, wish.id, delivery.id,
+                )
+            return delivered
         except Exception as exc:
             logger.error("[Proactive] Wish delivery failed: %s", exc)
             return False
@@ -608,7 +668,7 @@ class ProactiveMessenger:
         try:
             result = await loop.run_in_executor(None, take_selfie)
             await self._telegram_bot.send_photo(
-                chat_id, result.path, caption=result.caption(),
+                chat_id, result.path, caption=result.caption(), origin="proactive",
             )
             logger.info("[Proactive] attached selfie %s", result.path)
         except Exception as exc:
@@ -626,11 +686,10 @@ class ProactiveMessenger:
             replace_existing=True,
         )
         lo, hi = self._prob_range()
-        q_start, q_end = self._quiet_range()
         logger.info(
-            "[Proactive] Registered (every 5 min, prob=%.4f–%.4f, "
-            "quiet=%02d:00–%02d:00, max=%d/day).",
-            lo, hi, q_start, q_end, self._max_daily(),
+            "[Proactive] Registered evaluator (every 5 min, prob=%.4f–%.4f, "
+            "technical max=%d/day).",
+            lo, hi, self._max_daily(),
         )
 
 
@@ -641,12 +700,18 @@ def get_proactive_chat_id() -> int | None:
       1. proactive.chatId in config
       2. First entry in channels.telegram.allowedUsers
     """
+    allowed = config.get_int_list("channels", "telegram", "allowedUsers")
+    if not allowed:
+        return None
+
     explicit = config.get_int("proactive", "chatId", default=0)
     if explicit:
+        if explicit not in allowed:
+            logger.error(
+                "[Proactive] Refusing chatId=%s because it is not in Telegram allowedUsers",
+                explicit,
+            )
+            return None
         return explicit
 
-    allowed = config.get_int_list("channels", "telegram", "allowedUsers")
-    if allowed:
-        return allowed[0]
-
-    return None
+    return allowed[0]

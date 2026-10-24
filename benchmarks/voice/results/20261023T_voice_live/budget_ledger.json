@@ -1,0 +1,555 @@
+{
+  "per_call_ceiling_usd": 0.05,
+  "reservations": [
+    {
+      "observed_usd": 0.00034743,
+      "request_id": "ddd0b4c76b5bcc5c3732550d",
+      "reserved_usd": 0.00034743,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00021597,
+      "request_id": "c3ac235cdc5882d03afb62f6",
+      "reserved_usd": 0.00021597,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0004298,
+      "request_id": "7f94b766c7cf4b2348d79908",
+      "reserved_usd": 0.0004298,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00029002,
+      "request_id": "d7a457328f16dd05b8792565",
+      "reserved_usd": 0.00029002,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030916,
+      "request_id": "90af93b1c0b213adab73ce0a",
+      "reserved_usd": 0.00030916,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00029666,
+      "request_id": "4dbe8b7e99030f001115911c",
+      "reserved_usd": 0.00029666,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00022928,
+      "request_id": "ad86a618ce03046a844f6f17",
+      "reserved_usd": 0.00022928,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00024176,
+      "request_id": "9b96e485f93f7d6c51261110",
+      "reserved_usd": 0.00024176,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00029335,
+      "request_id": "6ab311479fbb0416c0324774",
+      "reserved_usd": 0.00029335,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00032996,
+      "request_id": "bdc826603eeac317d4202f1b",
+      "reserved_usd": 0.00032996,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00029168,
+      "request_id": "7aa276a49fa9233edc7b4f44",
+      "reserved_usd": 0.00029168,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00029501,
+      "request_id": "da799afefb8e1ea1b741b382",
+      "reserved_usd": 0.00029501,
+      "route": "deepgram:nova-3",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00036359,
+      "request_id": "41278e12c46b3e17c8f50096",
+      "reserved_usd": 0.00036359,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00022601,
+      "request_id": "0968e0d8913f30189c5399db",
+      "reserved_usd": 0.00022601,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00044979,
+      "request_id": "1593d8812c1075673ab1dbb3",
+      "reserved_usd": 0.00044979,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030351,
+      "request_id": "1bc5ac7368d8b5c7f37362db",
+      "reserved_usd": 0.00030351,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00032354,
+      "request_id": "093c8009bfd0352fefcf4fd2",
+      "reserved_usd": 0.00032354,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00031046,
+      "request_id": "e3c92665d59d4439de621d7a",
+      "reserved_usd": 0.00031046,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00023994,
+      "request_id": "d5a185e0affc8668d8c20fec",
+      "reserved_usd": 0.00023994,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.000253,
+      "request_id": "b80c047b771b253f40d53494",
+      "reserved_usd": 0.000253,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030699,
+      "request_id": "19ff44cce1612a2555966c14",
+      "reserved_usd": 0.00030699,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0003453,
+      "request_id": "16c2d635aa0005ccda78c2e1",
+      "reserved_usd": 0.0003453,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030525,
+      "request_id": "e094ce38d0903716f30e8b64",
+      "reserved_usd": 0.00030525,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030873,
+      "request_id": "547277dd1d76783ba1814a66",
+      "reserved_usd": 0.00030873,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00108,
+      "request_id": "75c4074e9548fbb2eb240635",
+      "reserved_usd": 0.00108,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00168,
+      "request_id": "c5394a5e91316a11aa1cb6f6",
+      "reserved_usd": 0.00168,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00171,
+      "request_id": "efe802ab2c5ec7511fca0b87",
+      "reserved_usd": 0.00171,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00165,
+      "request_id": "1a9eb6e2718a4dc178b1eac9",
+      "reserved_usd": 0.00165,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00162,
+      "request_id": "cc6df9c3a90a4ae54656c9a2",
+      "reserved_usd": 0.00162,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00144,
+      "request_id": "db9a5c6f902f62d976766d19",
+      "reserved_usd": 0.00144,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0015,
+      "request_id": "ea743930a3764727e2a16b9c",
+      "reserved_usd": 0.0015,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0018,
+      "request_id": "7d7ce9740d963048498d78e9",
+      "reserved_usd": 0.0018,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00447,
+      "request_id": "b67708d3833a7fc25ae285b7",
+      "reserved_usd": 0.00447,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00237,
+      "request_id": "37a1c01283e3bdfc21e98e57",
+      "reserved_usd": 0.00237,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Aoede:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00108,
+      "request_id": "e0dd7276b2d893d898879180",
+      "reserved_usd": 0.00108,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00168,
+      "request_id": "1af653aff56b65084e910d17",
+      "reserved_usd": 0.00168,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00171,
+      "request_id": "51070b6e15126d3a2d6e53b6",
+      "reserved_usd": 0.00171,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00165,
+      "request_id": "1592c2591b8091d72755aa9b",
+      "reserved_usd": 0.00165,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00162,
+      "request_id": "cb39e8f3c2fcb711a7590b94",
+      "reserved_usd": 0.00162,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00144,
+      "request_id": "8f59d794d7fe7402ceda6a63",
+      "reserved_usd": 0.00144,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0015,
+      "request_id": "8b1c7d8720cca755a31e4d6b",
+      "reserved_usd": 0.0015,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0018,
+      "request_id": "0fa2642a006b4c1c7d839c1c",
+      "reserved_usd": 0.0018,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00447,
+      "request_id": "8e22c5e401279edfcc36cf37",
+      "reserved_usd": 0.00447,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00237,
+      "request_id": "e8d1328cf177674ba8b841b9",
+      "reserved_usd": 0.00237,
+      "route": "google_cloud:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:eu",
+      "status": "settled"
+    },
+    {
+      "request_id": "57322ae605f0d757c4002bd2",
+      "reserved_usd": 0.00193915,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "53586ff8d3efc0ef6e7c0b23",
+      "reserved_usd": 0.0012054,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "dcd00f101d0bd91194db82b8",
+      "reserved_usd": 0.0023989,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "8e94770cc3b16a629d43f391",
+      "reserved_usd": 0.00161872,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "8851a26946c4d75d53673be5",
+      "reserved_usd": 0.00172553,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "1d69bc9d49cf3dab30d7d5cd",
+      "reserved_usd": 0.00165579,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "ba66e7eeff516b7e22bbea40",
+      "reserved_usd": 0.0012797,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "a58a2226c0d9811338d01eb6",
+      "reserved_usd": 0.00134936,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "e2fb65f66c62f6e490204cf2",
+      "reserved_usd": 0.00163729,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "3adfddeb57fe4d25effb2381",
+      "reserved_usd": 0.00184162,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "fdb22dca7a4f0ed18a266a01",
+      "reserved_usd": 0.001628,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "request_id": "2747b45f9607f77f9f142914",
+      "reserved_usd": 0.00164657,
+      "route": "google_cloud:chirp_3",
+      "status": "ambiguous_or_failed"
+    },
+    {
+      "observed_usd": 0.00036359,
+      "request_id": "ac086c7d0ce2135610ff4ea9",
+      "reserved_usd": 0.00036359,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00022601,
+      "request_id": "aab22ad5e2189e173df4deb8",
+      "reserved_usd": 0.00022601,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00044979,
+      "request_id": "65d1b8651d0408c99e3ac5c3",
+      "reserved_usd": 0.00044979,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030351,
+      "request_id": "8a1f09781ead73c6b3cb20a6",
+      "reserved_usd": 0.00030351,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00032354,
+      "request_id": "299e5b0162e0d3624af53401",
+      "reserved_usd": 0.00032354,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00031046,
+      "request_id": "3fed0cc02f6f29df0f11425d",
+      "reserved_usd": 0.00031046,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00023994,
+      "request_id": "304d29b86779e58bc28b9e5b",
+      "reserved_usd": 0.00023994,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.000253,
+      "request_id": "0353593265d34dac1896d849",
+      "reserved_usd": 0.000253,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030699,
+      "request_id": "283318597b2cebb52b9dcc2e",
+      "reserved_usd": 0.00030699,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0003453,
+      "request_id": "6a68180ef70d7d1ccf6d0654",
+      "reserved_usd": 0.0003453,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030525,
+      "request_id": "bada54104ff9c12085bcf6b8",
+      "reserved_usd": 0.00030525,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030873,
+      "request_id": "a2b211dc25386230b06f31dc",
+      "reserved_usd": 0.00030873,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00036359,
+      "request_id": "8e2a222c600a9124f34a3645",
+      "reserved_usd": 0.00036359,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00022601,
+      "request_id": "feabe97993b8758dac417a8e",
+      "reserved_usd": 0.00022601,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00044979,
+      "request_id": "c009bfed2380347748022552",
+      "reserved_usd": 0.00044979,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030351,
+      "request_id": "367efe992bc46e145f2c6b57",
+      "reserved_usd": 0.00030351,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00032354,
+      "request_id": "463b6874f0cd945c049f81cb",
+      "reserved_usd": 0.00032354,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00031046,
+      "request_id": "fdc4621d5c586c574dcbe85d",
+      "reserved_usd": 0.00031046,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00023994,
+      "request_id": "8e554bd58b6f5d860d59c2fe",
+      "reserved_usd": 0.00023994,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.000253,
+      "request_id": "434891d9e0dc420d002a8443",
+      "reserved_usd": 0.000253,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030699,
+      "request_id": "16ac191748b14471a8e1737e",
+      "reserved_usd": 0.00030699,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.0003453,
+      "request_id": "53936a37e2b9aa21c67b0d3a",
+      "reserved_usd": 0.0003453,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030525,
+      "request_id": "0dd8e507af560467d6140b4c",
+      "reserved_usd": 0.00030525,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    },
+    {
+      "observed_usd": 0.00030873,
+      "request_id": "56493cf3c403074becdfb232",
+      "reserved_usd": 0.00030873,
+      "route": "openai:gpt-transcribe",
+      "status": "settled"
+    }
+  ],
+  "total_ceiling_usd": 1.0,
+  "version": 1
+}

@@ -227,10 +227,19 @@ def take_selfie(
     album = album or PhotoAlbum()
     generator = generator or SeedreamGenerator(model=model)
 
-    # Canonical face reference — built once and reused, so the face stays the
-    # same person across changing scenes/outfits (seed + text alone drift when
-    # the prompt varies).
-    reference_path = ensure_reference(album, generator, model=model) if use_reference else None
+    # The D-031 OpenRouter route is stricter than legacy backends: it accepts
+    # exactly the one policy-allowlisted canonical asset and never bootstraps
+    # or silently drops a reference.
+    if generator.provider == "openrouter":
+        if not use_reference or generator.outbound_policy is None:
+            raise SeedreamError("OpenRouter selfies require the canonical reference")
+        image_policy = generator.outbound_policy.for_purpose("image_generation")
+        if len(image_policy.allowed_reference_assets) != 1:
+            raise SeedreamError("OpenRouter selfies require exactly one canonical reference")
+        reference_path = image_policy.allowed_reference_assets[0]
+    else:
+        # Legacy backends retain their existing bootstrap behaviour.
+        reference_path = ensure_reference(album, generator, model=model) if use_reference else None
 
     with tempfile.TemporaryDirectory(prefix="selfie_") as tmp:
         paths = generator.generate_and_download(
@@ -284,7 +293,13 @@ def take_selfie(
 # ── Config helpers ─────────────────────────────────────────────────────────
 
 def is_enabled() -> bool:
-    """Selfie feature is enabled when both Seedream key and feature flag are on."""
+    """Selfie feature is enabled when the selected backend has credentials."""
     if not config.get_bool("selfie", "enabled", default=True):
         return False
-    return bool(config.get_str("skills", "seedream", "apiKey", env="ARK_API_KEY"))
+    try:
+        from .generator import KEYLESS, _provider, _read_api_key
+
+        provider = _provider()
+        return provider in KEYLESS or bool(_read_api_key(provider))
+    except SeedreamError:
+        return False

@@ -222,11 +222,11 @@ class TestTelegramBot:
         from herandhim.channels.telegram_bot import TelegramBot
         assert TelegramBot is not None
 
-    def test_allowlist_empty_allows_all(self):
+    def test_allowlist_empty_is_fail_closed(self):
         from herandhim.channels.telegram_bot import TelegramBot
         bot = TelegramBot(session_manager=self._make_sm(), token="dummy", allowed_users=None)
-        assert bot._is_allowed(123456)
-        assert bot._is_allowed(999999)
+        assert not bot._is_allowed(123456)
+        assert not bot._is_allowed(999999)
 
     def test_allowlist_restricts_access(self):
         from herandhim.channels.telegram_bot import TelegramBot

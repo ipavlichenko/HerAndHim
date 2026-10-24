@@ -45,6 +45,12 @@ from urllib.parse import quote
 import requests
 
 from ... import config
+from ..outbound.costs import CostLedger
+from ..outbound.images import normalize_image_bytes
+from ..outbound.policy import OutboundPolicy, PolicyError
+from ..outbound.redaction import Redactor
+from ..outbound.trace import OutboundTrace
+from ..outbound.types import OutboundPurpose
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +71,7 @@ PROVIDERS: dict[str, tuple[str, str, str, bool]] = {
     "gemini":       ("GEMINI_API_KEY",      "https://generativelanguage.googleapis.com/v1beta",
                      "gemini-2.5-flash-image", True),
     "openrouter":   ("OPENROUTER_API_KEY",  "https://openrouter.ai/api/v1",
-                     "google/gemini-2.5-flash-image", True),
+                     "bytedance-seed/seedream-5-0-flash", True),
     "bfl":          ("BFL_API_KEY",         "https://api.bfl.ai/v1",
                      "flux-kontext-pro", True),
     "fal":          ("FAL_KEY",             "https://fal.run",
@@ -221,12 +227,28 @@ class SeedreamGenerator:
         model: str | None = None,
         timeout: int = DEFAULT_TIMEOUT,
         provider: str | None = None,
+        outbound_policy: OutboundPolicy | None = None,
+        outbound_trace: OutboundTrace | None = None,
+        cost_ledger: CostLedger | None = None,
     ) -> None:
         self.provider = (provider or _provider()).lower()
         self.api_key = api_key if api_key is not None else _read_api_key(self.provider)
         self.base_url = (base_url or _read_base_url(self.provider)).rstrip("/")
         self.model = model or _read_default_model(self.provider)
         self.timeout = timeout
+        self.outbound_policy = outbound_policy
+        self.outbound_trace = outbound_trace or OutboundTrace()
+        self.cost_ledger = cost_ledger
+        if self.provider == "openrouter" and self.outbound_policy is None:
+            raw = config.get("outboundPolicy")
+            if not isinstance(raw, dict):
+                raise SeedreamError("OpenRouter image generation requires outboundPolicy")
+            try:
+                self.outbound_policy = OutboundPolicy.from_mapping(raw)
+            except PolicyError as exc:
+                raise SeedreamError(f"OpenRouter outbound policy rejected: {exc}") from exc
+        if self.provider == "openrouter" and self.cost_ledger is None:
+            self.cost_ledger = CostLedger()
 
     # ── Generation ──────────────────────────────────────────────────────
 
@@ -412,38 +434,137 @@ class SeedreamGenerator:
         return [{"url": u} for u in urls if isinstance(u, str)]
 
     def _gen_openrouter(self, prompt, *, size, n, seed, reference_image, model):
-        """OpenRouter routes image models through the chat API. Worth having
-        because the quickstart in the README already hands out this key — the
-        cheapest possible path from 'it talks' to 'it sends photos'."""
-        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-        ref = _reference_bytes(reference_image) if reference_image else None
+        """Generate once through OpenRouter's dedicated ``POST /images`` API."""
+        if self.outbound_policy is None:
+            raise SeedreamError("OpenRouter outbound policy is required")
+        policy = self.outbound_policy.for_purpose(OutboundPurpose.IMAGE_GENERATION)
+        if n != policy.max_images or n != 1:
+            raise SeedreamError("OpenRouter image policy permits exactly one image")
+        if model != policy.model:
+            raise SeedreamError("caller cannot override the OpenRouter image model")
+        if not reference_image:
+            raise SeedreamError("OpenRouter image policy requires one canonical reference asset")
+        resolved_reference = os.path.realpath(reference_image)
+        allowed_references = {os.path.realpath(path) for path in policy.allowed_reference_assets}
+        if resolved_reference not in allowed_references:
+            raise SeedreamError("reference asset is not allowlisted by outbound policy")
+        ref = _reference_bytes(resolved_reference)
         if ref:
-            content.append({"type": "image_url", "image_url": {
-                "url": f"data:image/jpeg;base64,{base64.b64encode(ref).decode()}"}})
-        data = self._post(
-            f"{self.base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {self.api_key}",
-                     "Content-Type": "application/json",
-                     "HTTP-Referer": "https://github.com/ericwang915/HerAndHim",
-                     "X-Title": "HerAndHim"},
-            json={"model": model, "modalities": ["image", "text"],
-                  "messages": [{"role": "user", "content": content}]},
-        )
+            ref, mime, dimensions = normalize_image_bytes(ref)
+        else:
+            raise SeedreamError("allowlisted reference asset is unavailable")
+        clean_prompt, redactions = Redactor((self.api_key,)).redact(str(prompt))
+        text_bytes = len(clean_prompt.encode("utf-8"))
+        estimated_tokens = (text_bytes + 3) // 4
+        if text_bytes > 10_000 or estimated_tokens > policy.max_input_tokens_estimated:
+            raise SeedreamError("OpenRouter image prompt exceeds the outbound budget")
+        body = {
+            "model": policy.model,
+            "prompt": clean_prompt,
+            "input_references": [{
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{base64.b64encode(ref).decode()}"},
+            }],
+            "resolution": policy.resolution,
+            "aspect_ratio": policy.aspect_ratio,
+            "n": 1,
+        }
+        try:
+            reservation_id = self.cost_ledger.reserve(
+                OutboundPurpose.IMAGE_GENERATION.value,
+                policy.max_cost_usd_per_call,
+                policy.max_cost_usd_per_day,
+            )
+        except PolicyError as exc:
+            raise SeedreamError(f"OpenRouter image policy rejected: {exc}") from exc
+        self.outbound_trace.write({
+            "purpose": OutboundPurpose.IMAGE_GENERATION.value,
+            "policy_version": self.outbound_policy.version,
+            "transport": "images_api",
+            "model": policy.model,
+            "message_count": 0,
+            "text_bytes": text_bytes,
+            "estimated_input_tokens": estimated_tokens,
+            "image_count": 1,
+            "image_bytes": len(ref),
+            "redactions": redactions,
+            "budget_decision": "allowed",
+            "retry_count": 0,
+        })
+        started = time.monotonic()
+        try:
+            response = requests.post(
+                f"{self.base_url}/images",
+                headers={"Authorization": f"Bearer {self.api_key}",
+                         "Content-Type": "application/json",
+                         "User-Agent": "HerAndHim/0.2"},
+                json=body,
+                timeout=policy.total_timeout_seconds,
+            )
+        except (requests.RequestException, TimeoutError) as exc:
+            self.outbound_trace.write({
+                "purpose": OutboundPurpose.IMAGE_GENERATION.value,
+                "policy_version": self.outbound_policy.version,
+                "budget_decision": "allowed",
+                "error_code": "provider_request_failed",
+                "latency_ms": int((time.monotonic() - started) * 1000),
+                "retry_count": 0,
+            })
+            raise SeedreamError("OpenRouter image request failed") from exc
+        if not response.ok:
+            self.outbound_trace.write({
+                "purpose": OutboundPurpose.IMAGE_GENERATION.value,
+                "policy_version": self.outbound_policy.version,
+                "budget_decision": "allowed",
+                "http_status": response.status_code,
+                "error_code": "provider_request_failed",
+                "latency_ms": int((time.monotonic() - started) * 1000),
+                "retry_count": 0,
+            })
+            raise SeedreamError(f"OpenRouter image request failed ({response.status_code})")
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise SeedreamError("OpenRouter image response was not valid JSON") from exc
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        returned_model = data.get("model")
+        if returned_model is not None and returned_model != policy.model:
+            raise SeedreamError("OpenRouter image response model mismatch")
+        raw_cost = usage.get("cost")
+        if raw_cost is not None:
+            try:
+                actual_cost = float(raw_cost)
+            except (TypeError, ValueError) as exc:
+                raise SeedreamError("OpenRouter image response reported invalid cost") from exc
+            self.cost_ledger.reconcile(reservation_id, actual_cost)
+            if actual_cost > policy.max_cost_usd_per_call + 1e-12:
+                raise SeedreamError("OpenRouter image response exceeded the per-call cost cap")
+        self.outbound_trace.write({
+            "purpose": OutboundPurpose.IMAGE_GENERATION.value,
+            "policy_version": self.outbound_policy.version,
+            "budget_decision": "allowed",
+            "http_status": response.status_code,
+            "latency_ms": int((time.monotonic() - started) * 1000),
+            "returned_model": data.get("model"),
+            "returned_provider": data.get("provider"),
+            "input_tokens": usage.get("prompt_tokens"),
+            "output_tokens": usage.get("completion_tokens"),
+            "cost_usd": raw_cost,
+            "retry_count": 0,
+        })
         out: list[dict[str, Any]] = []
-        for choice in data.get("choices") or []:
-            for img in (choice.get("message") or {}).get("images") or []:
-                url = (img.get("image_url") or {}).get("url") or img.get("url")
-                if not url:
-                    continue
-                # Image models here answer with a data URL far more often
-                # than a fetchable one; unwrap so callers see plain base64.
-                if url.startswith("data:"):
-                    out.append({"b64": url.split(",", 1)[-1]})
-                else:
-                    out.append({"url": url})
-        if not out:
-            raise SeedreamError(
-                f"OpenRouter returned no image — is '{model}' an image model?")
+        items = data.get("data") or []
+        if not isinstance(items, list) or len(items) != 1 or not isinstance(items[0], dict):
+            raise SeedreamError("OpenRouter image response must contain exactly one image")
+        encoded = items[0].get("b64_json")
+        if not isinstance(encoded, str):
+            raise SeedreamError("OpenRouter image response did not contain base64 image data")
+        try:
+            decoded = base64.b64decode(encoded, validate=True)
+            normalized, _mime, _dimensions = normalize_image_bytes(decoded)
+        except (ValueError, PolicyError) as exc:
+            raise SeedreamError("OpenRouter image response contained an invalid image") from exc
+        out.append({"b64": base64.b64encode(normalized).decode("ascii")})
         return out
 
     def _gen_bfl(self, prompt, *, size, n, seed, reference_image, model):

@@ -71,6 +71,10 @@ SUMMARY_SECTIONS: list[tuple[str, str]] = [
 
 # Hard cap so structured summaries can't balloon across compact chains.
 MAX_SUMMARY_CHARS = 3000
+MAX_COMPACTION_TRANSCRIPT_CHARS = 8_000
+MAX_MEMORY_FLUSH_CHARS = 7_000
+
+
 def _compaction_log_file() -> str:
     from .. import config as _cfg
     return os.path.join(str(_cfg.HERANDHIM_HOME), "context", "compaction", "history.jsonl")
@@ -118,6 +122,63 @@ def messages_to_text(messages: list[dict]) -> str:
         if content:
             lines.append(f"{role.upper()}: {content}")
     return "\n".join(lines)
+
+
+def _bounded_summary_history(messages: list[dict]) -> str:
+    """Keep the previous summary plus the newest old turns within one call.
+
+    Durable facts are flushed separately across every deterministic chunk.
+    The summariser therefore needs the prior relationship summary and the
+    newest pre-compaction thread, not an unbounded transcript dump.
+    """
+    pinned = [
+        m for m in messages
+        if str(m.get("content") or "").startswith("[Compaction Summary")
+    ]
+    others = [m for m in messages if m not in pinned]
+    pinned_text = messages_to_text(pinned)
+    remaining = max(0, MAX_COMPACTION_TRANSCRIPT_CHARS - len(pinned_text))
+    selected: list[dict] = []
+    used = 0
+    for message in reversed(others):
+        rendered = messages_to_text([message])
+        if not rendered:
+            continue
+        if used + len(rendered) + 1 > remaining:
+            break
+        selected.append(message)
+        used += len(rendered) + 1
+    tail = messages_to_text(list(reversed(selected)))
+    return "\n".join(part for part in (pinned_text, tail) if part)
+
+
+def _memory_flush_chunks(messages: list[dict]) -> list[list[dict]]:
+    chunks: list[list[dict]] = []
+    current: list[dict] = []
+    current_chars = 0
+    for message in messages:
+        rendered = messages_to_text([message])
+        if not rendered:
+            continue
+        size = len(rendered) + 1
+        if current and current_chars + size > MAX_MEMORY_FLUSH_CHARS:
+            chunks.append(current)
+            current = []
+            current_chars = 0
+        # A single pathological message is locally clipped; current user
+        # content in the live dialogue path is still rejected, never truncated.
+        if size > MAX_MEMORY_FLUSH_CHARS:
+            clipped = dict(message)
+            clipped["content"] = str(message.get("content") or "")[
+                :MAX_MEMORY_FLUSH_CHARS
+            ]
+            chunks.append([clipped])
+            continue
+        current.append(message)
+        current_chars += size
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 # ── Structured summary prompt ─────────────────────────────────────────────────
@@ -174,42 +235,51 @@ def memory_flush(
     if not messages_to_flush:
         return 0
 
-    history_text = messages_to_text(messages_to_flush)
-    prompt = (
-        "You are a memory extraction assistant. "
-        "Given the following conversation transcript, identify ALL important facts, "
-        "decisions, preferences, and context that should be remembered long-term. "
-        "Return a JSON array of objects with 'key' and 'value' fields. "
-        "If nothing important, return [].\n\n"
-        f"TRANSCRIPT:\n{history_text}\n\n"
-        "Return ONLY valid JSON, no explanation."
-    )
-    try:
-        response = provider.chat(
-            messages=[{"role": "user", "content": prompt}],
-            tools=[],
-            tool_choice="none",
+    saved = 0
+    for chunk in _memory_flush_chunks(messages_to_flush):
+        history_text = messages_to_text(chunk)
+        prompt = (
+            "You extract durable memory for a personal companion. Identify only "
+            "confirmed facts, preferences, decisions, boundaries, plans, promises, "
+            "and relationship context worth keeping. Return a JSON array of objects "
+            "with stable snake_case 'key' and concise 'value'. If nothing matters, "
+            "return [].\n\n"
+            f"TRANSCRIPT:\n{history_text}\n\n"
+            "Return ONLY valid JSON, no explanation."
         )
-        raw = response.choices[0].message.content or "[]"
-        # Strip markdown fences if present
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = "\n".join(raw.split("\n")[1:])
-        if raw.endswith("```"):
-            raw = raw[: raw.rfind("```")]
-        facts: list[dict] = json.loads(raw)
-        saved = 0
-        for fact in facts:
-            key = str(fact.get("key", "")).strip()
-            value = str(fact.get("value", "")).strip()
-            if key and value:
-                memory.remember(key=key, content=value)
+        try:
+            purpose_kw = (
+                {"purpose": "memory_consolidation"}
+                if getattr(provider, "requires_outbound_purpose", False) else {}
+            )
+            response = provider.chat(
+                messages=[{"role": "user", "content": prompt}],
+                tools=[],
+                tool_choice="none",
+                max_tokens=600,
+                **purpose_kw,
+            )
+            raw = (response.choices[0].message.content or "[]").strip()
+            if raw.startswith("```"):
+                raw = "\n".join(raw.split("\n")[1:])
+            if raw.endswith("```"):
+                raw = raw[: raw.rfind("```")]
+            facts: list[dict] = json.loads(raw)
+            for fact in facts:
+                key = str(fact.get("key", "")).strip()
+                value = str(fact.get("value", "")).strip()
+                if not key or not value:
+                    continue
+                store_extracted = getattr(type(memory), "remember_extracted", None)
+                if callable(store_extracted):
+                    memory.remember_extracted(key=key, content=value)
+                else:
+                    memory.remember(key=key, content=value)
                 saved += 1
-        logger.info("[Compaction] Memory flush saved %d fact(s).", saved)
-        return saved
-    except Exception as exc:
-        logger.warning("[Compaction] Memory flush failed (non-fatal): %s", exc)
-        return 0
+        except Exception as exc:
+            logger.warning("[Compaction] Memory flush chunk failed (non-fatal): %s", exc)
+    logger.info("[Compaction] Memory flush saved %d fact(s).", saved)
+    return saved
 
 
 # ── Core compact function ─────────────────────────────────────────────────────
@@ -221,6 +291,7 @@ def compact(
     recent_keep: int = DEFAULT_RECENT_KEEP,
     instruction: str | None = None,
     log_path: str | None = None,
+    flush_memory: bool = True,
 ) -> tuple[list[dict], str]:
     """
     Compact conversation history.
@@ -238,14 +309,25 @@ def compact(
     -------
     (new_messages, summary_text)
     """
-    system_msgs = [m for m in messages if m.get("role") == "system"]
-    chat_msgs   = [m for m in messages if m.get("role") != "system"]
+    prior_summaries = [
+        m for m in messages
+        if m.get("role") == "system"
+        and str(m.get("content") or "").startswith("[Compaction Summary")
+    ]
+    system_msgs = [
+        m for m in messages
+        if m.get("role") == "system" and m not in prior_summaries
+    ]
+    chat_msgs = [m for m in messages if m.get("role") != "system"]
 
     if len(chat_msgs) <= recent_keep:
         logger.info("[Compaction] Not enough history to compact (%d messages).", len(chat_msgs))
         return messages, ""
 
-    to_summarise = chat_msgs[:-recent_keep]
+    # Fold the previous summary into the new one instead of accumulating one
+    # immortal system message per cycle. This keeps compaction bounded while
+    # preserving its relationship/fact/commitment evidence for the next pass.
+    to_summarise = prior_summaries + chat_msgs[:-recent_keep]
     to_keep      = chat_msgs[-recent_keep:]
 
     logger.info(
@@ -254,18 +336,24 @@ def compact(
     )
 
     # 1. Memory flush — save important facts before discarding old messages
-    if memory is not None:
+    if memory is not None and flush_memory:
         memory_flush(to_summarise, provider, memory)
 
     # 2. Summarise — structured so relationship continuity survives the chain
-    history_text = messages_to_text(to_summarise)
+    history_text = _bounded_summary_history(to_summarise)
     focus = f"\nAdditional focus: {instruction}" if instruction else ""
     summarise_prompt = build_summary_prompt(history_text, focus)
     try:
+        purpose_kw = (
+            {"purpose": "memory_consolidation"}
+            if getattr(provider, "requires_outbound_purpose", False) else {}
+        )
         response = provider.chat(
             messages=[{"role": "user", "content": summarise_prompt}],
             tools=[],
             tool_choice="none",
+            max_tokens=800,
+            **purpose_kw,
         )
         summary = _cap_summary((response.choices[0].message.content or "").strip())
     except Exception as exc:

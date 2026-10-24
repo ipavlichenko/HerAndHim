@@ -90,6 +90,33 @@ def test_vision_env_vars_land_under_llm_vision(rc):
     assert rc.render(saved, {})["llm"]["vision"] == {"provider": "ollama", "model": "moondream"}
 
 
+def test_fresh_config_has_fail_closed_outbound_policy_placeholders(rc):
+    cfg = rc.render(None, {})
+    policy = cfg["outboundPolicy"]
+    assert set(policy["purposes"]) == {
+        "dialogue", "vision", "image_generation", "memory_consolidation",
+        "relationship_analysis",
+    }
+    for name, purpose in policy["purposes"].items():
+        if name == "image_generation":
+            assert purpose["model"] == "bytedance-seed/seedream-5-0-flash"
+            assert purpose["transport"] == "images_api"
+            assert purpose["resolution"] == "1K"
+            assert purpose["aspectRatio"] == "2:3"
+            assert purpose["maxImages"] == 1
+            assert "activeProvider" not in purpose
+        else:
+            assert purpose["model"] == "REQUIRED_EXACT_ID"
+        assert purpose["maxCostUsdPerCall"] == 0
+        assert purpose["maxCostUsdPerDay"] == 0
+
+
+def test_existing_outbound_policy_is_preserved(rc):
+    saved = rc.render(None, {})
+    saved["outboundPolicy"] = {"version": 99, "operator": "owned"}
+    assert rc.render(saved, {})["outboundPolicy"] == saved["outboundPolicy"]
+
+
 def test_stt_env_vars_land_under_stt(rc):
     """Local speech-to-text: provider and model size come in via env."""
     cfg = rc.render(None, {"HERANDHIM_STT_PROVIDER": "local",
@@ -217,7 +244,9 @@ def test_main_prints_the_token_and_locks_the_file_down(rc, tmp_path, capsys):
     path = tmp_path / "herandhim.json"
     assert rc.main([str(path)]) == 0
     token = json.loads(path.read_text())["web"]["accessToken"]
-    assert f"dashboard access token: {token}" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "dashboard access token: configured (value not logged)" in output
+    assert token not in output
     assert (path.stat().st_mode & 0o777) == 0o600
 
 

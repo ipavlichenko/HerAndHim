@@ -1,0 +1,144 @@
+{
+  "version": 2,
+  "language": "ru-RU",
+  "evidence_snapshot": "2026-10-23",
+  "materialization": {
+    "status": "frozen",
+    "rule": "Use only the byte-identical files and SHA-256 values in the frozen corpus index; never use owner audio in the comparative benchmark.",
+    "telegram_format": "ogg_opus_mono_48000",
+    "voices_minimum": 3,
+    "corpus_index": "corpus/index.json",
+    "verifier": "verify_corpus.py",
+    "provenance": "PROVENANCE.md"
+  },
+  "stt_candidates": [
+    {
+      "id": "deepgram_nova3_ru",
+      "provider": "deepgram",
+      "model": "nova-3",
+      "language": "ru",
+      "required_request": {
+        "mip_opt_out": true,
+        "smart_format": true,
+        "punctuate": true
+      },
+      "public_price_usd_per_minute": 0.0043
+    },
+    {
+      "id": "openai_gpt_transcribe_ru",
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "languages": ["ru"],
+      "public_price_usd_per_minute": 0.0045
+    },
+    {
+      "id": "openai_gpt_transcribe_ru_vocab_v1",
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "languages": ["ru"],
+      "prompt_profile": "Russian speech with occasional English technical terms: LeSS, Scrum, OpenRouter, Telegram, roadmap, deployment, regression check, Opus.",
+      "public_price_usd_per_minute": 0.0045
+    },
+    {
+      "id": "openai_gpt_transcribe_ru_vocab_v2",
+      "provider": "openai",
+      "model": "gpt-transcribe",
+      "languages": ["ru"],
+      "prompt_profile": "Это речь эксперта по организационному дизайну и разработке. Английские термины транскрибируй латиницей и точно с таким написанием: LeSS, Scrum, roadmap, deployment, regression check, OpenRouter, Telegram, Opus. Имя: Александр.",
+      "public_price_usd_per_minute": 0.0045
+    },
+    {
+      "id": "google_chirp3_ru_eu",
+      "provider": "google_cloud",
+      "model": "chirp_3",
+      "language": "ru-RU",
+      "region": "eu",
+      "project_id": "lateral-scion-512111-e3",
+      "required_account": {"data_logging": false},
+      "public_price_usd_per_minute": 0.024
+    },
+    {
+      "id": "elevenlabs_scribe_v2_ru",
+      "provider": "elevenlabs",
+      "model": "scribe_v2",
+      "language_code": "ru",
+      "required_request": {
+        "enable_logging": false,
+        "tag_audio_events": false,
+        "diarize": false
+      },
+      "public_price_usd_per_minute": 0.003666667,
+      "eligibility_gate": "enterprise_zero_retention"
+    }
+  ],
+  "tts_candidates": [
+    {
+      "id": "elevenlabs_v4_turbo_ru",
+      "provider": "elevenlabs",
+      "model": "eleven_v4_turbo",
+      "voice_id": "REQUIRED_AFTER_FREE_PREFLIGHT",
+      "required_request": {"enable_logging": false},
+      "eligibility_gate": "enterprise_zero_retention",
+      "public_ceiling_usd_per_1000_chars": 0.1
+    },
+    {
+      "id": "elevenlabs_multilingual_v2_ru",
+      "provider": "elevenlabs",
+      "model": "eleven_multilingual_v2",
+      "voice_id": "REQUIRED_AFTER_FREE_PREFLIGHT",
+      "required_request": {"enable_logging": false},
+      "eligibility_gate": "enterprise_zero_retention",
+      "public_ceiling_usd_per_1000_chars": 0.1
+    },
+    {
+      "id": "google_chirp3_aoede_ru",
+      "provider": "google_cloud",
+      "model": "chirp3-hd",
+      "voice_id": "ru-RU-Chirp3-HD-Aoede",
+      "region": "eu",
+      "required_account": {"data_logging": false},
+      "public_ceiling_usd_per_1000_chars": 0.03
+    },
+    {
+      "id": "google_chirp3_zephyr_ru",
+      "provider": "google_cloud",
+      "model": "chirp3-hd",
+      "voice_id": "ru-RU-Chirp3-HD-Zephyr",
+      "region": "eu",
+      "required_account": {"data_logging": false},
+      "public_ceiling_usd_per_1000_chars": 0.03
+    }
+  ],
+  "stt_cases": [
+    {"id": "casual_clean", "text": "Слушай, я сегодня задержусь минут на двадцать, но потом обязательно напишу.", "critical": ["двадцать", "обязательно"], "condition": "clean"},
+    {"id": "question_intent", "text": "Ты правда думаешь, что нам стоит перенести встречу на пятницу?", "critical": ["пятницу"], "condition": "clean"},
+    {"id": "numbers_dates", "text": "Запиши: двадцать третьего октября в восемнадцать сорок, бюджет — триста пятьдесят тысяч рублей.", "critical": ["23 октября", "18:40", "350000"], "condition": "clean"},
+    {"id": "names_terms", "text": "На ревью обсудим LeSS, Scrum и карту причинно-следственных связей с Александром.", "critical": ["LeSS", "Scrum", "Александром"], "condition": "clean"},
+    {"id": "code_switch", "text": "Я обновил roadmap, но deployment пока не запускай — сначала нужен regression check.", "critical": ["roadmap", "deployment", "regression check"], "condition": "clean"},
+    {"id": "colloquial", "text": "Ну да, вроде всё нормально, просто я чё-то вымотался и хочу немного помолчать.", "critical": ["вымотался", "помолчать"], "condition": "casual_fast"},
+    {"id": "self_correction", "text": "Встретимся во вторник... нет, подожди, в среду после семи.", "critical": ["среду", "после семи"], "condition": "hesitation"},
+    {"id": "quiet_speech", "text": "Не буди меня утром, пожалуйста. Я сам напишу, когда проснусь.", "critical": ["не буди", "сам напишу"], "condition": "quiet"},
+    {"id": "background_noise", "text": "Купи, пожалуйста, молоко, хлеб и зелёные яблоки, только не красные.", "critical": ["зелёные", "не красные"], "condition": "cafe_noise_snr_10db"},
+    {"id": "telegram_codec", "text": "Это проверка голосового сообщения после перекодирования в телеграмный Opus.", "critical": ["перекодирования", "Opus"], "condition": "ogg_opus_32k"},
+    {"id": "emotion_boundary", "text": "Я не злюсь. Мне скорее грустно, и сейчас не хочется обсуждать решения.", "critical": ["не злюсь", "грустно", "не хочется"], "condition": "subdued"},
+    {"id": "punctuation_contrast", "text": "Подожди! Ты уже отправил письмо? Нет? Тогда пока ничего не делай.", "critical": ["не делай"], "condition": "expressive"}
+  ],
+  "tts_cases": [
+    {"id": "warm_short", "text": "Я рядом. Расскажешь, когда захочешь."},
+    {"id": "casual", "text": "Слушай, я тут подумала: давай сегодня никуда не спешить."},
+    {"id": "question", "text": "Ты правда хочешь, чтобы я напомнила об этом завтра утром?"},
+    {"id": "numbers", "text": "Встреча двадцать третьего октября в восемнадцать сорок."},
+    {"id": "code_switch", "text": "Roadmap готов, но deployment пока оставим выключенным."},
+    {"id": "soft_boundary", "text": "Хорошо, я не буду писать до завтра. Береги себя."},
+    {"id": "joy", "text": "Получилось! Я так рада за тебя — это правда круто."},
+    {"id": "subdued", "text": "Мне немного грустно это слышать. Давай просто побудем рядом."},
+    {"id": "long_reply", "text": "Сегодня был спокойный день: я немного читала, гуляла и думала о нашем разговоре. Без выводов и советов — просто возвращалась к нему время от времени."},
+    {"id": "pronunciation", "text": "LeSS, Scrum, OpenRouter и Telegram остаются частью нашего технического контура."}
+  ],
+  "hard_budget": {
+    "stt_usd_per_call": 0.05,
+    "tts_usd_per_call": 0.05,
+    "total_usd": 1.0,
+    "automatic_retries": 0
+  }
+}

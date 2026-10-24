@@ -6,18 +6,19 @@ import os
 from unittest.mock import MagicMock
 
 from herandhim.core.compaction import (
-    estimate_tokens,
-    messages_to_text,
-    persist_compaction,
-    compact,
-    memory_flush,
-    build_summary_prompt,
-    _cap_summary,
     CHARS_PER_TOKEN,
+    MAX_COMPACTION_TRANSCRIPT_CHARS,
+    MAX_MEMORY_FLUSH_CHARS,
     MAX_SUMMARY_CHARS,
     SUMMARY_SECTIONS,
+    _cap_summary,
+    build_summary_prompt,
+    compact,
+    estimate_tokens,
+    memory_flush,
+    messages_to_text,
+    persist_compaction,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,17 @@ class TestPersistCompaction:
 # ── compact() core function ──────────────────────────────────────────────────
 
 class TestCompactFunction:
+    def test_secured_provider_receives_memory_consolidation_purpose(self, tmp_path):
+        provider = make_provider(summary="Bounded summary.")
+        provider.requires_outbound_purpose = True
+        compact(
+            messages=[{"role": "system", "content": "sys"}] + chat_messages(10),
+            provider=provider,
+            recent_keep=4,
+            log_path=str(tmp_path / "secured.jsonl"),
+        )
+        assert provider.chat.call_args.kwargs["purpose"] == "memory_consolidation"
+
     def test_returns_new_messages_and_summary(self, tmp_path):
         log = str(tmp_path / "h.jsonl")
         system = [{"role": "system", "content": "You are ADA."}]
@@ -182,6 +194,32 @@ class TestCompactFunction:
         compaction_msgs = [m for m in system_msgs if "Compaction Summary" in m.get("content", "")]
         assert len(compaction_msgs) == 1
         assert "Compact summary text." in compaction_msgs[0]["content"]
+
+    def test_repeated_compaction_replaces_and_folds_previous_summary(self, tmp_path):
+        provider = make_provider(summary="Current bounded summary.")
+        messages, _ = compact(
+            messages=[{"role": "system", "content": "sys"}] + chat_messages(10),
+            provider=provider,
+            recent_keep=4,
+            log_path=str(tmp_path / "first.jsonl"),
+        )
+        previous = next(
+            m["content"] for m in messages
+            if str(m.get("content", "")).startswith("[Compaction Summary")
+        )
+        messages, _ = compact(
+            messages=messages + chat_messages(10),
+            provider=provider,
+            recent_keep=4,
+            log_path=str(tmp_path / "second.jsonl"),
+        )
+        summaries = [
+            m for m in messages
+            if str(m.get("content", "")).startswith("[Compaction Summary")
+        ]
+        assert len(summaries) == 1
+        second_prompt = provider.chat.call_args.kwargs["messages"][0]["content"]
+        assert previous in second_prompt
 
     def test_not_enough_history_returns_unchanged(self, tmp_path):
         log = str(tmp_path / "h.jsonl")
@@ -264,6 +302,44 @@ class TestMemoryFlush:
         result = memory_flush(chat_messages(4), provider, mem)
         assert result == 0
 
+    def test_long_flush_is_chunked_and_direct_store_avoids_paid_fanout(self):
+        prompts = []
+        provider = MagicMock()
+
+        def _chat(**kwargs):
+            prompts.append(kwargs["messages"][0]["content"])
+            return MagicMock(choices=[MagicMock(message=MagicMock(
+                content='[{"key":"boundary","value":"stop means stop"}]',
+            ))])
+
+        provider.chat.side_effect = _chat
+
+        class Memory:
+            def __init__(self):
+                self.direct = []
+                self.normal_calls = 0
+
+            def remember_extracted(self, *, key, content):
+                self.direct.append((key, content))
+
+            def remember(self, *, key, content):
+                self.normal_calls += 1
+
+        memory = Memory()
+        messages = [
+            {"role": "user" if i % 2 == 0 else "assistant", "content": "x" * 2200}
+            for i in range(10)
+        ]
+
+        saved = memory_flush(messages, provider, memory)
+
+        assert len(prompts) > 1
+        assert all(len(prompt.split("TRANSCRIPT:\n", 1)[1]) < MAX_MEMORY_FLUSH_CHARS + 200
+                   for prompt in prompts)
+        assert saved == len(prompts)
+        assert memory.normal_calls == 0
+        assert len(memory.direct) == len(prompts)
+
 
 # ── Companion-structured summary ─────────────────────────────────────────────
 
@@ -294,6 +370,23 @@ class TestStructuredSummary:
         prompt = build_summary_prompt("USER: hi")
         assert "at most 3 short bullets" in prompt
         assert "(none)" in prompt
+
+    def test_long_compaction_summary_prompt_is_bounded(self, tmp_path):
+        provider = make_provider(summary=STRUCTURED_SUMMARY)
+        compact(
+            messages=[{"role": "system", "content": "sys"}] + [
+                {"role": "user" if i % 2 == 0 else "assistant", "content": "x" * 2200}
+                for i in range(12)
+            ],
+            provider=provider,
+            recent_keep=4,
+            log_path=str(tmp_path / "bounded.jsonl"),
+        )
+        prompt = provider.chat.call_args.kwargs["messages"][0]["content"]
+        transcript = prompt.split("CONVERSATION:\n", 1)[1].split(
+            "\n\nReturn only the structured summary:", 1,
+        )[0]
+        assert len(transcript) <= MAX_COMPACTION_TRANSCRIPT_CHARS
 
     def test_instruction_included_in_prompt(self, tmp_path):
         provider = make_provider()

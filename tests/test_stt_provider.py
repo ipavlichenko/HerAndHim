@@ -23,7 +23,8 @@ from herandhim.core import stt
 def _isolated_home(monkeypatch, tmp_path):
     monkeypatch.setenv("HERANDHIM_HOME", str(tmp_path))
     monkeypatch.setattr(config, "_HERANDHIM_BASE", tmp_path)
-    for var in ("DEEPGRAM_API_KEY", "HERANDHIM_STT_PROVIDER", "HERANDHIM_STT_LOCAL_MODEL"):
+    for var in ("DEEPGRAM_API_KEY", "OPENAI_AUDIO_API_KEY", "HERANDHIM_STT_PROVIDER",
+                "HERANDHIM_STT_LOCAL_MODEL"):
         monkeypatch.delenv(var, raising=False)
     config._configs.clear()
     config._config_paths.clear()
@@ -189,6 +190,69 @@ def test_an_unknown_provider_value_degrades_to_auto(tmp_path, monkeypatch):
     })
     _deepgram_answers(monkeypatch, "auto took over")
     assert asyncio.run(stt.transcribe_bytes_async(b"opus...")) == "auto took over"
+
+
+def test_openai_exact_route_is_single_call_budgeted_and_metadata_only(tmp_path, monkeypatch):
+    _configure(tmp_path, {
+        "stt": {"provider": "openai"},
+        "openaiAudio": {
+            "apiKey": "oa-key", "maxCostUsdPerCall": 0.01,
+            "maxCostUsdPerDay": 0.10,
+        },
+    })
+    seen: list[dict] = []
+
+    class Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"text": "LeSS regression check"}
+
+    class Client:
+        def __init__(self, **kwargs):
+            seen.append({"init": kwargs})
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, **kwargs):
+            seen.append({"url": url, **kwargs})
+            return Response()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", Client)
+
+    out = asyncio.run(stt.transcribe_bytes_async(
+        b"opus", "audio/ogg", duration_seconds=5,
+    ))
+    assert out == "LeSS regression check"
+    calls = [row for row in seen if "url" in row]
+    assert len(calls) == 1
+    assert calls[0]["data"]["model"] == "gpt-transcribe"
+    assert calls[0]["data"]["language"] == "ru"
+    assert "LeSS" in calls[0]["data"]["prompt"]
+    assert calls[0]["files"]["file"] == ("voice.ogg", b"opus", "audio/ogg")
+    trace = json.loads((tmp_path / "context/state/outbound_trace.jsonl").read_text())
+    assert trace["retry_count"] == 0
+    assert trace["audio_bytes"] == 4
+    assert not ({"audio", "transcript", "prompt", "credential"} & trace.keys())
+
+
+def test_openai_route_fails_closed_without_budget(tmp_path, monkeypatch):
+    _configure(tmp_path, {
+        "stt": {"provider": "openai"},
+        "openaiAudio": {"apiKey": "oa-key"},
+    })
+    from herandhim.core.outbound.policy import PolicyError
+
+    with pytest.raises(PolicyError, match="maxCostUsdPerCall"):
+        asyncio.run(stt.transcribe_bytes_async(b"opus", duration_seconds=5))
 
 
 # ── Local model configuration ─────────────────────────────────────────────

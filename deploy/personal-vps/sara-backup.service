@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up the Sarah pilot state
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/sara/deploy/backup.py
+Nice=10
+IOSchedulingClass=idle
+

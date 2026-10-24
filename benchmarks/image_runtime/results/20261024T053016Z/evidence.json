@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "timestamp_utc": "2026-10-24T05:30:28.453222+00:00",
+  "synthetic_only": true,
+  "authorized_usd": 0.05,
+  "reported_cost_usd": 0.018,
+  "observed_key_delta_usd": 0.0,
+  "accounted_spend_usd": 0.018,
+  "latency_ms": 11143,
+  "model": "bytedance-seed/seedream-5-0-flash",
+  "transport": "images_api",
+  "reference_sha256": "456dfe60752870674eca8ded6b3689a3046ed7aa3085b27f0338f24f84ad56fc",
+  "image": {
+    "path": "/Users/iliapavlichenko/Library/CloudStorage/Dropbox/AI/мои проекты/HerAndHim/upstream/HerAndHim/benchmarks/image_runtime/results/20261024T053016Z/seedream-live.jpg",
+    "bytes": 159705,
+    "sha256": "5ad5da8e0c43c5e710f32d8b431538c8cda1ca48d41eb3648d9baf27cbd9202f",
+    "format": "JPEG",
+    "dimensions": [
+      786,
+      1176
+    ]
+  },
+  "trace_rows": 2,
+  "assertions": {
+    "exactly_one_image": true,
+    "valid_image": true,
+    "portrait_2_to_3": true,
+    "exact_model_traced": true,
+    "one_reference_traced": true,
+    "budget_within_authority": true,
+    "zero_retry": true,
+    "trace_content_free": true
+  }
+}

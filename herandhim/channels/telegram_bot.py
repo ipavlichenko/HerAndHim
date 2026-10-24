@@ -27,8 +27,8 @@ Commands
 
 Access control
 --------------
-Set TELEGRAM_ALLOWED_USERS to a comma-separated list of integer Telegram user
-IDs to restrict access.  Leave empty (or unset) to allow all users.
+Set TELEGRAM_ALLOWED_USERS to a comma-separated list containing the owner's
+integer Telegram user ID.  Empty or unset allowlists fail closed.
 
 Group behaviour
 ---------------
@@ -44,10 +44,11 @@ import logging
 import os
 import queue as _queue
 import re
+import tempfile
 import time
 from typing import TYPE_CHECKING
 
-from telegram import BotCommand, ReactionTypeEmoji, Update
+from telegram import BotCommand, KeyboardButton, ReactionTypeEmoji, ReplyKeyboardMarkup, Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -60,9 +61,50 @@ from .. import config
 from ..core.humanize import humanize_gap, maybe_react, reply_delay, send_burst
 
 if TYPE_CHECKING:
+    from ..core.telegram_transport import TelegramTransportStore
     from ..session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
+
+_PHOTO_FAILURE_TEXT = (
+    "I couldn't safely process that image. Please send a valid photo under 4 MiB."
+)
+_VOICE_FAILURE_TEXT = "I couldn't safely process that voice note. Please try a shorter recording."
+_VOICE_EMPTY_TEXT = "I couldn't recognise speech in that voice note."
+_MODEL_FAILURE_TEXT = "Не получилось ответить. Попробуйте отправить сообщение позже."
+_COST_CAP_FAILURE_TEXT = (
+    "На сегодня исчерпан лимит расходов на диалог. Повторная отправка сейчас "
+    "не поможет; Сара снова сможет отвечать после сброса дневного лимита."
+)
+_VOICE_MAX_DURATION_SECONDS = 120
+_VOICE_MAX_INPUT_BYTES = 8 * 1024 * 1024
+_PHOTO_BUTTON_TEXT = "📸 Хочу твоё фото"
+
+
+def _quick_action_keyboard() -> ReplyKeyboardMarkup:
+    """Persistent owner keyboard for the highest-value companion action."""
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(_PHOTO_BUTTON_TEXT)]],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Напишите Саре…",
+    )
+
+
+def _expand_quick_action(text: str) -> str:
+    if text == _PHOTO_BUTTON_TEXT:
+        return (
+            "Пришли мне своё фото сейчас. Пусть фотография естественно "
+            "продолжает текущую сцену и то, как ты только что описала свой вид."
+        )
+    return text
+
+
+def _model_failure_text(raw_response: str) -> str:
+    """Map internal policy failures to truthful, content-free Russian UX."""
+    if raw_response.startswith("Error: ") and "daily_cost_cap_exceeded" in raw_response:
+        return _COST_CAP_FAILURE_TEXT
+    return _MODEL_FAILURE_TEXT
 
 
 class TelegramBot:
@@ -79,10 +121,14 @@ class TelegramBot:
         token: str,
         allowed_users: list[int] | None = None,
         require_mention: bool = False,
+        transport_store: "TelegramTransportStore | None" = None,
     ) -> None:
+        from ..core.telegram_transport import TelegramTransportStore
+
         self._sm = session_manager
         self._token = token
         self._allowed_users: set[int] = set(allowed_users) if allowed_users else set()
+        self._transport = transport_store or TelegramTransportStore()
         self._require_mention = require_mention
         self._app: Application | None = None
         self._bot_username: str | None = None
@@ -115,67 +161,116 @@ class TelegramBot:
             return
         await self._app.bot.send_message(chat_id=chat_id, text=text)
 
-    async def send_photo(self, chat_id: int, path: str, caption: str = "") -> None:
-        """Send a photo with inline preview (used by selfie scheduler)."""
-        if self._app is None:
-            logger.warning("[Telegram] send_photo called before bot is running")
-            return
-        with open(path, "rb") as f:
-            await self._app.bot.send_photo(
-                chat_id=chat_id,
-                photo=f,
-                caption=caption[:1024] if caption else None,
-            )
-
-    async def send_voice(self, chat_id: int, voice: bytes | str, caption: str = "") -> None:
-        """Send a playable voice bubble. *voice* is OGG/Opus or MP3 —
-        either raw bytes or a file path."""
-        if self._app is None:
-            logger.warning("[Telegram] send_voice called before bot is running")
-            return
-        if isinstance(voice, str):
-            with open(voice, "rb") as f:
-                voice = f.read()
-        await self._app.bot.send_voice(
-            chat_id=chat_id,
-            voice=voice,
-            caption=caption[:1024] if caption else None,
+    async def send_photo(
+        self,
+        chat_id: int,
+        path: str,
+        caption: str = "",
+        *,
+        origin: str = "explicit",
+    ) -> bool:
+        """Accept one owner photo into the durable outbox, then attempt it."""
+        if chat_id not in self._allowed_users:
+            raise PermissionError("Telegram photo target is not an allowlisted owner")
+        session_id = self._session_id(chat_id)
+        self._transport.enqueue_media(
+            session_id, chat_id, path, caption, origin=origin, kind="photo",
         )
+        if self._app is None:
+            logger.warning("[Telegram] photo queued before bot is running")
+            return False
+        return await self._deliver_pending_media(session_id)
+
+    async def _deliver_pending_photo(self, session_id: str) -> bool:
+        """Backward-compatible alias for the unified durable media delivery."""
+        return await self._deliver_pending_media(session_id)
+
+    async def _deliver_pending_media(self, session_id: str) -> bool:
+        """Claim before Telegram I/O; ambiguous failures are never retried."""
+        if self._app is None:
+            return False
+        delivery = self._transport.claim_next_media(session_id)
+        if delivery is None:
+            return False
+        if (delivery.chat_id not in self._allowed_users
+                or delivery.session_id != self._session_id(delivery.chat_id)):
+            logger.error("[Telegram] rejected non-owner media delivery %s", delivery.id)
+            return False
+        try:
+            with open(delivery.path, "rb") as handle:
+                if delivery.kind == "voice":
+                    await self._app.bot.send_voice(
+                        chat_id=delivery.chat_id,
+                        voice=handle,
+                        caption=delivery.caption or None,
+                    )
+                else:
+                    await self._app.bot.send_photo(
+                        chat_id=delivery.chat_id,
+                        photo=handle,
+                        caption=delivery.caption or None,
+                    )
+        except Exception as exc:
+            logger.error("[Telegram] %s delivery attempt failed: %s", delivery.kind, exc)
+            return False
+        self._transport.mark_media_delivered(delivery.id)
+        return True
+
+    async def send_voice(
+        self,
+        chat_id: int,
+        voice: bytes | str,
+        caption: str = "",
+        *,
+        format: str | None = None,
+        origin: str = "explicit",
+    ) -> bool:
+        """Accept one owner voice clip into the durable outbox, then attempt it."""
+        if chat_id not in self._allowed_users:
+            raise PermissionError("Telegram voice target is not an allowlisted owner")
+        session_id = self._session_id(chat_id)
+        temporary_path: str | None = None
+        path = voice if isinstance(voice, str) else None
+        if path is None:
+            suffix = f".{(format or '').lower()}"
+            if suffix not in {".ogg", ".opus", ".mp3", ".m4a"}:
+                raise ValueError("raw Telegram voice bytes require an allowed format")
+            handle = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+            try:
+                handle.write(voice)
+                handle.flush()
+                os.fsync(handle.fileno())
+                temporary_path = handle.name
+            finally:
+                handle.close()
+            path = temporary_path
+        try:
+            self._transport.enqueue_media(
+                session_id, chat_id, path, caption, origin=origin, kind="voice",
+            )
+        finally:
+            if temporary_path is not None:
+                os.unlink(temporary_path)
+        if self._app is None:
+            logger.warning("[Telegram] voice queued before bot is running")
+            return False
+        return await self._deliver_pending_media(session_id)
 
     # ── Access control ────────────────────────────────────────────────────────
 
     def _is_allowed(self, user_id: int) -> bool:
-        if not self._allowed_users:
-            return True
-        return user_id in self._allowed_users
+        return bool(self._allowed_users) and user_id in self._allowed_users
 
-    async def _remember_their_photo(self, agent, image_part: dict) -> None:
-        """Describe a photo the user sent in one line and file it in long-term
-        memory, keyed by date, so she can reference it days later.
+    async def _remember_their_photo(self, agent, vision_reply: str) -> None:
+        """File a short local memory from the already completed vision turn.
 
-        One cheap vision call, off the reply path. Silent on any failure —
-        losing a memory is never worth delaying or breaking a reply.
+        D-029 forbids sending the same inbound image through a second cloud
+        vision request merely to create a memory.
         """
         try:
             from datetime import datetime as _dt
-            provider = getattr(agent, "provider", None)
-            if provider is None or not getattr(provider, "supports_images", False):
-                return
-            loop = asyncio.get_event_loop()
-
-            def _describe() -> str:
-                r = provider.chat(
-                    messages=[{"role": "user", "content": [
-                        {"type": "text", "text":
-                         "Describe this photo in ONE short line (max 15 words) — "
-                         "what/where/mood. Output only the line."},
-                        image_part,
-                    ]}],
-                    tools=[], temperature=0.2, max_tokens=60,
-                )
-                return (r.choices[0].message.content or "").strip()
-
-            desc = await loop.run_in_executor(None, _describe)
+            words = str(vision_reply or "").split()
+            desc = " ".join(words[:15]).strip()
             if not desc:
                 return
             stamp = _dt.now().strftime("%Y-%m-%d_%H%M%S")
@@ -216,7 +311,7 @@ class TelegramBot:
         user = update.effective_user
         if user is None or not self._is_allowed(user.id):
             logger.warning("[Telegram] Rejected user_id=%s", user.id if user else "unknown")
-            await update.message.reply_text("Sorry, you are not authorised to use this bot.")
+            await update.message.reply_text("У вас нет доступа к этому боту.")
             return False
         return True
 
@@ -251,15 +346,17 @@ class TelegramBot:
         sid = self._session_id(update.effective_chat.id)
         self._sm.get_or_create(sid)
         await update.message.reply_text(
-            "\U0001f44b Hi! I'm your HerAndHim agent.\n\n"
-            "Just send me a message and I'll do my best to help.\n"
-            "You can also send photos and I'll analyze them.\n\n"
-            "Commands:\n"
-            "  /start          \u2014 show this message\n"
-            "  /reset          \u2014 start a fresh session\n"
-            "  /status         \u2014 show session info\n"
-            "  /compact [hint] \u2014 compact conversation history\n"
-            "  /clear_files    \u2014 delete all downloaded files"
+            "👋 Это личный Telegram-бот Сары.\n\n"
+            "Просто напишите Саре сообщение.\n"
+            "Можно также отправить фото или голосовое.\n\n"
+            "Команды:\n"
+            "  /start          — показать эту справку\n"
+            "  /clear          — очистить историю, сохранив память\n"
+            "  /reset          — то же, что /clear\n"
+            "  /status         — показать состояние сессии\n"
+            "  /compact [указание] — сжать историю диалога\n"
+            "  /clear_files    — удалить загруженные файлы",
+            reply_markup=_quick_action_keyboard(),
         )
 
     async def _cmd_reset(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -274,10 +371,8 @@ class TelegramBot:
         sid = self._session_id(update.effective_chat.id)
         self._sm.reset(sid)
         await update.message.reply_text(
-            "🧹 Chat history cleared — fresh session.\n"
-            "Long-term memory, persona, and what I know about you are kept.\n\n"
-            "🧹 已清空对话记录，重新开始。\n"
-            "你的资料、记忆和我们的关系还在。"
+            "🧹 История текущего диалога очищена.\n"
+            "Долгосрочная память, личность Сары и история ваших отношений сохранены."
         )
 
     async def _cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -287,15 +382,15 @@ class TelegramBot:
         agent = self._sm.get_or_create(sid)
         from ..core.compaction import estimate_tokens
         await update.message.reply_text(
-            f"\U0001f4ca Session Status\n"
-            f"  Session ID   : {sid}\n"
-            f"  Provider     : {type(agent.provider).__name__}\n"
-            f"  Skills       : {len(agent.loaded_skill_names)} loaded\n"
-            f"  Memories     : {len(agent.memory.list_all())} entries\n"
-            f"  History      : {len(agent.messages)} messages\n"
-            f"  Est. tokens  : ~{estimate_tokens(agent.messages):,}\n"
-            f"  Compactions  : {agent.compaction_count}\n"
-            f"  Total sessions: {len(self._sm)}"
+            f"📊 Состояние сессии\n"
+            f"  ID сессии: {sid}\n"
+            f"  Провайдер: {type(agent.provider).__name__}\n"
+            f"  Активных навыков: {len(agent.loaded_skill_names)}\n"
+            f"  Записей памяти: {len(agent.memory.list_all())}\n"
+            f"  Сообщений в истории: {len(agent.messages)}\n"
+            f"  Оценка токенов: ~{estimate_tokens(agent.messages):,}\n"
+            f"  Сжатий истории: {agent.compaction_count}\n"
+            f"  Всего сессий: {len(self._sm)}"
         )
 
     async def _cmd_compact(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -304,20 +399,21 @@ class TelegramBot:
         sid = self._session_id(update.effective_chat.id)
         agent = self._sm.get_or_create(sid)
         hint: str | None = " ".join(context.args).strip() or None if context.args else None
-        await update.message.reply_text("\u23f3 Compacting conversation history...")
+        await update.message.reply_text("⏳ Сжимаю историю диалога…")
         try:
-            result = agent.compact(instruction=hint)
-        except Exception as exc:
-            result = f"Compaction failed: {exc}"
-        for chunk in _split_message(result):
-            await update.message.reply_text(chunk)
+            agent.compact(instruction=hint)
+        except Exception:
+            logger.exception("[Telegram] conversation compaction failed")
+            await update.message.reply_text("Не удалось сжать историю диалога.")
+            return
+        await update.message.reply_text("✅ История диалога сжата. Важный контекст сохранён.")
 
     async def _cmd_clear_files(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._check_access(update, context):
             return
         from .. import config as _cfg
         count = _cfg.clear_files()
-        await update.message.reply_text(f"Cleared {count} file(s) from the downloads folder.")
+        await update.message.reply_text(f"🧹 Удалено файлов: {count}.")
 
     # ── Message handler (text + photos) ───────────────────────────────────────
 
@@ -329,6 +425,12 @@ class TelegramBot:
             if not self._is_mentioned(update):
                 return
 
+        sid = self._session_id(update.effective_chat.id)
+        update_id = getattr(update, "update_id", None)
+        if update_id is not None and not self._transport.accept_update(update_id, sid):
+            logger.info("[Telegram] Ignoring duplicate accepted update_id=%s", update_id)
+            return
+
         # Capture the Telegram chat_id once so the
         # proactive scheduler knows where to message them. Best-effort —
         # any failure just means we'll retry on the next inbound message.
@@ -336,6 +438,22 @@ class TelegramBot:
 
         user_text = (update.message.text or update.message.caption or "").strip()
         user_text = self._strip_mention(user_text)
+        user_text = _expand_quick_action(user_text)
+
+        if user_text:
+            from ..core.telegram_transport import parse_silence_boundary
+
+            boundary = parse_silence_boundary(user_text)
+            if boundary is not None:
+                action, expiry = boundary
+                if action == "cancel":
+                    self._transport.cancel_silence(sid)
+                elif expiry is not None:
+                    self._transport.set_silence(
+                        sid,
+                        expiry,
+                        source_update_id=int(update_id) if update_id is not None else None,
+                    )
 
         has_photo = bool(update.message.photo)
         has_voice = bool(update.message.voice or update.message.audio)
@@ -349,7 +467,6 @@ class TelegramBot:
         if not user_text and not has_photo:
             return
 
-        sid = self._session_id(update.effective_chat.id)
         agent = self._sm.get_or_create(sid)
 
         # Companion mode (a soul/persona is configured) delivers like a real
@@ -374,53 +491,45 @@ class TelegramBot:
             # How many of HER messages went unanswered before this reply — lets
             # her be a little sulky about being ignored, with a real basis.
             # Read before clearing, since this message ends the streak.
-            from ..core import proactive_state as _pstate
-            agent._ignored_count = _pstate.unanswered(sid)
-            _pstate.clear(sid)
+            agent._ignored_count = self._transport.clear_proactive_unanswered(sid)
             # Selective reaction — a photo almost always, big feelings
             # sometimes, logistics never. Fired before the reply, like a
             # human seeing the message first.
             asyncio.create_task(maybe_react(
                 context.bot, update.effective_chat.id,
                 update.message.message_id, has_photo, user_text))
-        elif has_photo and not user_text:
-            # Assistant mode: photo without caption → queue, don't generate.
-            # The next text pops the queue and we answer once with all parts.
-            try:
-                parts = await self._build_image_input(update, "")
-            except Exception:
-                parts = []
-            for p in parts:
-                if isinstance(p, dict) and p.get("type") == "image_url":
-                    agent.queue_attachment(p)
-            try:
-                await update.message.set_reaction(
-                    [ReactionTypeEmoji("\U0001f4ce")],  # 📎
-                )
-            except Exception:
-                pass
-            return
         else:
             try:
                 await update.message.set_reaction([ReactionTypeEmoji("\U0001f440")])
             except Exception:
                 pass
 
-        # Build the multimodal turn: queued images (from earlier photo-only
-        # turns) + this turn's new image (if any) + the caption / text.
-        queued = agent.consume_attachments()
+        # Telegram vision is deliberately current-turn-only.  Older upstream
+        # versions queued captionless photos in the Agent until a later text
+        # message, which retained base64 in memory and could send a stale image
+        # through D-029.  Clear any legacy queue but never include it here.
+        stale_attachments = agent.consume_attachments()
+        if stale_attachments:
+            logger.warning(
+                "[Telegram] discarded %d stale queued attachment(s) for %s",
+                len(stale_attachments), sid,
+            )
         new_parts: list[dict] = []
         if has_photo:
-            built = await self._build_image_input(update, "")
+            try:
+                built = await self._build_image_input(update, "")
+            except Exception as exc:
+                from ..core.outbound.policy import PolicyError
+
+                if not isinstance(exc, PolicyError):
+                    raise
+                logger.warning("[Telegram] rejected inbound photo: %s", exc)
+                await update.message.reply_text(_PHOTO_FAILURE_TEXT)
+                return
             new_parts = [p for p in built if isinstance(p, dict) and p.get("type") == "image_url"]
 
-        all_attachments = queued + new_parts
+        all_attachments = new_parts
 
-        # Remember the photos THEY send, so she can bring one up later
-        # ("that beach pic you sent last week") instead of seeing it once and
-        # forgetting it. Background + best-effort: never blocks the reply.
-        if is_companion and new_parts:
-            asyncio.create_task(self._remember_their_photo(agent, new_parts[0]))
         if all_attachments:
             photo_placeholder = ("（我发了一张照片给你，看看然后自然地回应～）"
                                  if is_companion else "What's in this image?")
@@ -455,6 +564,13 @@ class TelegramBot:
                     reply = await loop.run_in_executor(None, agent.chat, chat_input)
                     typing_task.cancel()
                     if reply:
+                        if reply.startswith("Error: "):
+                            await update.message.reply_text(
+                                _PHOTO_FAILURE_TEXT if new_parts else _model_failure_text(reply)
+                            )
+                            return
+                        if new_parts:
+                            await self._remember_their_photo(agent, reply)
                         text = _clean_response(reply)
                         if is_companion:
                             try:
@@ -524,7 +640,11 @@ class TelegramBot:
                     clip.format,
                 )
                 return False
-            await self._app.bot.send_voice(chat_id=chat_id, voice=clip.data)
+            delivered = await self.send_voice(
+                chat_id, clip.data, format=clip.format, origin="explicit",
+            )
+            if not delivered:
+                return False
             logger.info("[Telegram] Voice reply sent (%d chars → %s, %.1f KB)",
                         len(speech), clip.format, len(clip.data) / 1024)
             return True
@@ -633,7 +753,12 @@ class TelegramBot:
                 pass
 
         if not sent_any:
-            text = _clean_response(response or "(no response)")
+            raw_response = response or ""
+            text = (
+                _model_failure_text(raw_response)
+                if raw_response.startswith("Error: ") or not raw_response
+                else _clean_response(raw_response)
+            )
             for chunk in _split_message(text):
                 await update.message.reply_text(chunk)
 
@@ -660,32 +785,15 @@ class TelegramBot:
             future.result(timeout=60)
 
         def _photo_sender(path: str, caption: str = "") -> None:
-            async def _do_send():
-                try:
-                    with open(path, "rb") as f:
-                        await bot_app.bot.send_photo(
-                            chat_id=chat_id,
-                            photo=f,
-                            caption=caption[:1024] if caption else None,
-                        )
-                except Exception as exc:
-                    logger.warning("[Telegram] send_photo failed: %s", exc)
-
-            future = asyncio.run_coroutine_threadsafe(_do_send(), loop)
+            future = asyncio.run_coroutine_threadsafe(
+                self.send_photo(chat_id, path, caption), loop,
+            )
             future.result(timeout=60)
 
         def _voice_sender(path: str, caption: str = "") -> None:
-            async def _do_send():
-                # No try/except: a failure must propagate so tools.send_voice
-                # can fall back to sending the audio as a document.
-                with open(path, "rb") as f:
-                    await bot_app.bot.send_voice(
-                        chat_id=chat_id,
-                        voice=f,
-                        caption=caption[:1024] if caption else None,
-                    )
-
-            future = asyncio.run_coroutine_threadsafe(_do_send(), loop)
+            future = asyncio.run_coroutine_threadsafe(
+                self.send_voice(chat_id, path, caption, origin="explicit"), loop,
+            )
             future.result(timeout=60)
 
         set_file_sender(self._session_id(chat_id), _file_sender)
@@ -694,17 +802,13 @@ class TelegramBot:
 
     async def _build_image_input(self, update: Update, caption: str) -> list:
         """Download photo and build a multimodal content array."""
+        from ..core.outbound.images import normalize_image_bytes
+
         photo = update.message.photo[-1]  # highest resolution
         file = await photo.get_file()
         data = await file.download_as_bytearray()
-        b64 = base64.b64encode(bytes(data)).decode()
-
-        # Determine MIME type from the photo's file path extension
-        mime_type = "image/jpeg"
-        mime_map = {".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}
-        ext = os.path.splitext(file.file_path or "")[1].lower()
-        if ext in mime_map:
-            mime_type = mime_map[ext]
+        normalized, mime_type, _dimensions = normalize_image_bytes(bytes(data))
+        b64 = base64.b64encode(normalized).decode()
 
         return [
             {"type": "text", "text": caption},
@@ -726,15 +830,30 @@ class TelegramBot:
         from ..core.stt import no_key_message, transcribe_bytes_async
 
         voice = update.message.voice or update.message.audio
+        duration = getattr(voice, "duration", None)
+        file_size = getattr(voice, "file_size", None)
+        if not isinstance(duration, (int, float)) or duration <= 0 \
+                or duration > _VOICE_MAX_DURATION_SECONDS:
+            await update.message.reply_text(_VOICE_FAILURE_TEXT)
+            return None
+        if not isinstance(file_size, int) or file_size <= 0 \
+                or file_size > _VOICE_MAX_INPUT_BYTES:
+            await update.message.reply_text(_VOICE_FAILURE_TEXT)
+            return None
         tg_file = await voice.get_file()
         audio_bytes = bytes(await tg_file.download_as_bytearray())
+        if len(audio_bytes) > _VOICE_MAX_INPUT_BYTES:
+            await update.message.reply_text(_VOICE_FAILURE_TEXT)
+            return None
         mime = voice.mime_type or "audio/ogg"
 
         try:
-            transcript = await transcribe_bytes_async(audio_bytes, mime)
+            transcript = await transcribe_bytes_async(
+                audio_bytes, mime, duration_seconds=float(duration),
+            )
         except Exception as exc:
-            logger.warning("[Telegram] Voice transcription failed: %s", exc)
-            await update.message.reply_text(f"Voice transcription failed: {exc}")
+            logger.warning("[Telegram] Voice transcription failed (%s)", type(exc).__name__)
+            await update.message.reply_text(_VOICE_FAILURE_TEXT)
             return None
 
         if transcript is None:
@@ -742,10 +861,10 @@ class TelegramBot:
             return None
 
         if not transcript.strip():
-            await update.message.reply_text("Could not recognise any speech in the audio.")
+            await update.message.reply_text(_VOICE_EMPTY_TEXT)
             return None
 
-        logger.info("[Telegram] Voice transcribed: %s", transcript[:80])
+        logger.info("[Telegram] Voice transcribed (%d chars)", len(transcript))
         return transcript
 
     async def _keep_typing(self, chat_id: int) -> None:
@@ -762,12 +881,12 @@ class TelegramBot:
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     _BOT_COMMANDS = [
-        BotCommand("start",       "Show welcome message"),
-        BotCommand("clear",       "🧹 Clear chat history (keep memory & persona)"),
-        BotCommand("reset",       "Alias for /clear — same thing"),
-        BotCommand("status",      "Show session info"),
-        BotCommand("compact",     "Compact conversation history"),
-        BotCommand("clear_files", "Delete all downloaded files"),
+        BotCommand("start",       "Показать справку"),
+        BotCommand("clear",       "🧹 Очистить историю, сохранив память"),
+        BotCommand("reset",       "То же, что /clear"),
+        BotCommand("status",      "Показать состояние сессии"),
+        BotCommand("compact",     "Сжать историю диалога"),
+        BotCommand("clear_files", "Удалить загруженные файлы"),
     ]
 
 
@@ -805,7 +924,7 @@ class TelegramBot:
         app = self.build_application()
         logger.info("[Telegram] Starting bot (polling mode)...")
         app.post_init = lambda _app: self._register_commands()
-        app.run_polling(drop_pending_updates=True)
+        app.run_polling(drop_pending_updates=False)
 
     async def start_async(self) -> None:
         """Non-blocking start — for use inside an existing asyncio event loop."""
@@ -814,7 +933,7 @@ class TelegramBot:
         await app.initialize()
         await app.start()
         await self._register_commands()
-        await app.updater.start_polling(drop_pending_updates=True)
+        await app.updater.start_polling(drop_pending_updates=False)
 
     async def stop_async(self) -> None:
         if self._app is None:
@@ -886,13 +1005,17 @@ def create_bot(session_manager: "SessionManager") -> TelegramBot:
     allowed_users = config.get_int_list(
         "channels", "telegram", "allowedUsers", env="TELEGRAM_ALLOWED_USERS",
     )
+    if not allowed_users:
+        raise ValueError(
+            "Telegram allowedUsers must contain the owner id; empty allowlist is forbidden"
+        )
     require_mention = config.get_bool(
         "channels", "telegram", "requireMention", default=False,
     )
     return TelegramBot(
         session_manager=session_manager,
         token=token,
-        allowed_users=allowed_users or None,
+        allowed_users=allowed_users,
         require_mention=require_mention,
     )
 

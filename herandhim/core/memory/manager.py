@@ -143,6 +143,20 @@ class MemoryManager:
         self.storage.set(key, content)
         return f"Memory stored: [{key}] = {content}"
 
+    def remember_extracted(self, content: str, key: str) -> str:
+        """Store a fact already produced by the bounded batch extractor.
+
+        Running write-time consolidation again for every fact would turn one
+        compaction flush into an unbounded fan-out of paid sidecar calls.  The
+        extractor is instructed to emit stable keys; same-key facts remain
+        last-write-wins and future explicit writes still use normal
+        consolidation.
+        """
+        if not key:
+            raise ValueError("Key is required for memory storage.")
+        self.storage.set(key, content)
+        return f"Memory stored: [{key}] = {content}"
+
     def _apply_op(self, op) -> str:
         """Apply a consolidation MemoryOp to local storage."""
         if op.op == "NOOP":
@@ -193,6 +207,38 @@ class MemoryManager:
 
         lines = [f"- {h['source']}: {h['content'].split(': ', 1)[-1]}" for h in hits]
         return "\n".join(lines)
+
+    def relevant_snippets(self, query: str, top_k: int = 8) -> list[dict]:
+        """Return bounded local retrieval evidence for an outbound dialogue.
+
+        Unlike ``recall()``, this API preserves a local provenance key and a
+        numeric relevance score.  It never invokes an LLM reranker and never
+        returns the complete store when there is no lexical match.
+        """
+        if not query.strip() or top_k <= 0:
+            return []
+        memories = self._merged_memories()
+        if not memories:
+            return []
+
+        from ..retrieval.sparse import BM25Retriever
+
+        corpus = [
+            {"source": key, "content": f"{key.replace('_', ' ')}: {value}"}
+            for key, value in memories.items()
+        ]
+        retriever = BM25Retriever()
+        retriever.fit(corpus)
+        hits = retriever.retrieve(query, top_k=min(top_k, 8))
+        return [
+            {
+                "key": row["source"],
+                "value": memories[row["source"]],
+                "score": round(float(score), 6),
+            }
+            for score, row in hits
+            if row["source"] in memories
+        ]
 
     def forget(self, key: str) -> str:
         """Remove a memory entry by key from local memory."""

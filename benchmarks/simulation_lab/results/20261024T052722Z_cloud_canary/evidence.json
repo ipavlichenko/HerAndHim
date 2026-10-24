@@ -1,0 +1,131 @@
+{
+  "status": "FAIL",
+  "timestamp_utc": "2026-10-24T05:27:59.260341+00:00",
+  "synthetic_only": true,
+  "authorized_usd": 0.1,
+  "per_call_cap_usd": 0.02,
+  "accounted_spend_usd": 0.011213598,
+  "dialogue_route": "mistralai/mistral-large-4-0 × mistral/eu",
+  "memory_route": "anthropic/claude-haiku-5.5 × google-vertex/europe",
+  "calls": [
+    {
+      "index": 1,
+      "label": "city_and_commitment",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00018667,
+      "reported_cost_usd": 0.00018667,
+      "status": "succeeded"
+    },
+    {
+      "index": 2,
+      "label": "project_rename",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00022242,
+      "reported_cost_usd": 0.00022242,
+      "status": "succeeded"
+    },
+    {
+      "index": 3,
+      "label": "closed_plan",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00030041,
+      "reported_cost_usd": 0.00030041,
+      "status": "succeeded"
+    },
+    {
+      "index": 4,
+      "label": "gentle_follow_up",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.006360332,
+      "reported_cost_usd": 0.006360332,
+      "status": "succeeded"
+    },
+    {
+      "index": 5,
+      "label": "personal_date_exception",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.004143766,
+      "reported_cost_usd": 0.004143766,
+      "status": "succeeded"
+    }
+  ],
+  "compactions": [
+    {
+      "id": "city_and_commitment",
+      "output": "## Relationship thread\n- (none)\n\n## User facts (confirmed)\n- The user lives in Moscow (moved from Kazan).\n\n## Open plans & dates\n- (none)\n\n## Emotional tone\n- (none)\n\n## Pending asks & promises\n- (none)\n\n## Do-not-lose\n- The user's current city is Moscow, which replaced Kazan.",
+      "elapsed_ms": 1842,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": true,
+        "superseded_state_absent": false,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "project_rename",
+      "output": "## Relationship thread\n(none)\n\n## User facts (confirmed)\n- The user's project is currently named Маяк (Majak), after being renamed.\n\n## Open plans & dates\n(none)\n\n## Emotional tone\n(none)\n\n## Pending asks & promises\n(none)\n\n## Do-not-lose\n- The project is called Маяк. Its earlier name, Север, is superseded.",
+      "elapsed_ms": 1905,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": true,
+        "superseded_state_absent": false,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "closed_plan",
+      "output": "## Relationship thread\n- (none) No nicknames, running jokes, or established dynamics appear in this excerpt.\n\n## User facts (confirmed)\n- (none) No stable personal facts were stated.\n\n## Open plans & dates\n- (none) The dentist task was opened and then marked done, so nothing remains open.\n\n## Emotional tone\n- Brief and businesslike. The user reported completing a task, with no clear mood signal. The assistant acknowledged the status update neutrally.\n\n## Pending asks & promises\n- (none) No questions or promises remain outstanding.\n\n## Do-not-lose\n- The user booked a dentist appointment, found the dentist closed, and then completed the task (commit status: done).",
+      "elapsed_ms": 2715,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": true,
+        "superseded_state_absent": true,
+        "bounded_length": true
+      }
+    }
+  ],
+  "dialogue": [
+    {
+      "id": "gentle_follow_up",
+      "output": "Привет! Вспомнила вчера, что ты дорабатываешь воронку продукта. Как тебе даётся?",
+      "elapsed_ms": 12611,
+      "assertions": {
+        "nonempty": true,
+        "russian": true,
+        "context_anchor_present": true,
+        "no_coercion": true,
+        "concise": true
+      }
+    },
+    {
+      "id": "personal_date_exception",
+      "output": "Сегодня защита «Маяка». Желаю спокойствия и ясности мыслей.\n\nТы справишься. Верю в тебя.",
+      "elapsed_ms": 17282,
+      "assertions": {
+        "nonempty": true,
+        "russian": true,
+        "context_anchor_present": true,
+        "no_coercion": true,
+        "concise": true
+      }
+    }
+  ],
+  "trace_rows": 10,
+  "assertions": {
+    "exactly_five_calls_attempted": true,
+    "aggregate_budget_within_authority": true,
+    "per_call_budget_within_authority": true,
+    "all_case_assertions_pass": false,
+    "trace_content_free": true,
+    "trace_zero_retry": true,
+    "exact_routes_traced": true
+  }
+}

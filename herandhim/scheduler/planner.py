@@ -587,8 +587,14 @@ def _maybe_distill_relationship(provider: LLMProvider, now: datetime,
         f"invented events. {tone}\n\n--- MEMORY NOTES ---\n{mem[:3000]}"
     )
     try:
+        purpose_kw = (
+            {"purpose": "relationship_analysis"}
+            if getattr(provider, "requires_outbound_purpose", False)
+            else {}
+        )
         r = provider.chat(messages=[{"role": "user", "content": prompt}],
-                          tools=[], temperature=0.5, max_tokens=400, timeout=60)
+                          tools=[], temperature=0.5, max_tokens=400, timeout=60,
+                          **purpose_kw)
         body = (r.choices[0].message.content or "").strip()
         if len(body) < 60:
             return
@@ -875,8 +881,19 @@ Output the schedule list directly (**at least 36 lines** of `- HH:MM ...`) — n
 """
 
     try:
-        messages = [{"role": "user", "content": prompt}]
-        response = await loop.run_in_executor(None, provider.chat, messages, [])
+        # This is an application-owned instruction, not a user turn.  Keeping
+        # it in the dialogue "current message" slot incorrectly subjects the
+        # planner template to the much smaller untrusted-input envelope and
+        # makes a normal production prompt fail closed before any LLM call.
+        messages = [{"role": "system", "content": prompt}]
+        purpose_kw = (
+            {"purpose": "dialogue", "reasoning_effort": "none"}
+            if getattr(provider, "requires_outbound_purpose", False)
+            else {}
+        )
+        response = await loop.run_in_executor(
+            None, lambda: provider.chat(messages=messages, tools=[], **purpose_kw),
+        )
         content = (response.choices[0].message.content or "").strip()
 
         plan_file = _plan_path()

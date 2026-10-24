@@ -32,10 +32,22 @@ Deepgram language is configurable via ``deepgram.language``:
 from __future__ import annotations
 
 import logging
+import time
+from pathlib import Path
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
 _DEEPGRAM_BASE = "https://api.deepgram.com/v1/listen"
+_OPENAI_TRANSCRIPTIONS_API = "https://api.openai.com/v1/audio/transcriptions"
+_OPENAI_MODEL = "gpt-transcribe"
+_OPENAI_LANGUAGE = "ru"
+_OPENAI_PROMPT = (
+    "Это речь эксперта по организационному дизайну и разработке. "
+    "Английские термины транскрибируй латиницей и точно с таким написанием: "
+    "LeSS, Scrum, roadmap, deployment, regression check, OpenRouter, Telegram, Opus. "
+    "Имя: Александр."
+)
 
 _FALLBACK_LANGUAGES = ("zh", "en", "ja", "ko", "es", "fr", "de")
 
@@ -59,7 +71,7 @@ _NO_LOCAL_MSG = (
     "machine and never leave it."
 )
 
-_VALID_PROVIDERS = ("auto", "deepgram", "local")
+_VALID_PROVIDERS = ("auto", "deepgram", "local", "openai")
 
 
 def _get_provider() -> str:
@@ -74,6 +86,30 @@ def _get_provider() -> str:
 def _get_key() -> str | None:
     from .. import config
     return config.get("deepgram", "apiKey", env="DEEPGRAM_API_KEY") or None
+
+
+def _get_openai_key() -> str | None:
+    from .. import config
+    return config.get("openaiAudio", "apiKey", env="OPENAI_AUDIO_API_KEY") or None
+
+
+def _positive_cap(name: str) -> float:
+    from .. import config
+    from .outbound.policy import PolicyError
+
+    try:
+        value = float(config.get("openaiAudio", name, default=0) or 0)
+    except (TypeError, ValueError) as exc:
+        raise PolicyError(f"openaiAudio.{name} must be a positive number") from exc
+    if value <= 0:
+        raise PolicyError(f"openaiAudio.{name} must be positive")
+    return value
+
+
+def _voice_trace():
+    from .. import config
+    from .outbound.trace import OutboundTrace
+    return OutboundTrace(Path(config.HERANDHIM_HOME) / "context" / "state" / "outbound_trace.jsonl")
 
 
 def _get_config_language() -> str:
@@ -176,7 +212,7 @@ async def _transcribe_local_async(audio: bytes) -> str:
 # ── Async ─────────────────────────────────────────────────────────────────────
 
 async def transcribe_bytes_async(
-    audio: bytes, content_type: str = "audio/ogg"
+    audio: bytes, content_type: str = "audio/ogg", *, duration_seconds: float | None = None
 ) -> str | None:
     """Non-blocking transcription via the configured provider.
 
@@ -185,6 +221,14 @@ async def transcribe_bytes_async(
     """
     provider = _get_provider()
     key = _get_key()
+
+    if provider == "openai":
+        openai_key = _get_openai_key()
+        if not openai_key:
+            return None
+        return await _transcribe_openai_async(
+            openai_key, audio, content_type, duration_seconds=duration_seconds,
+        )
 
     if provider == "local":
         if not local_available():
@@ -209,6 +253,61 @@ async def transcribe_bytes_async(
     if local_available():
         return await _transcribe_local_async(audio)
     return None
+
+
+async def _transcribe_openai_async(
+    key: str,
+    audio: bytes,
+    content_type: str,
+    *,
+    duration_seconds: float | None = None,
+) -> str:
+    """One exact OpenAI transcription call: pinned model, no retry or fallback."""
+    import httpx
+
+    from .outbound.costs import CostLedger
+
+    per_call_cap = _positive_cap("maxCostUsdPerCall")
+    daily_cap = _positive_cap("maxCostUsdPerDay")
+    ledger = CostLedger()
+    reservation_id = ledger.reserve("voice_stt", per_call_cap, daily_cap)
+    request_id = uuid4().hex
+    started = time.monotonic()
+    event = {
+        "timestamp": int(time.time()), "request_id": request_id,
+        "purpose": "voice_stt", "policy_version": 1,
+        "transport": "openai_audio_transcriptions", "model": _OPENAI_MODEL,
+        "provider": "openai", "audio_bytes": len(audio),
+        "audio_duration_seconds": duration_seconds,
+        "budget_decision": "reserved", "retry_count": 0,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                _OPENAI_TRANSCRIPTIONS_API,
+                headers={"Authorization": f"Bearer {key}"},
+                files={"file": ("voice.ogg", audio, content_type)},
+                data={"model": _OPENAI_MODEL, "language": _OPENAI_LANGUAGE, "prompt": _OPENAI_PROMPT},
+            )
+        event["http_status"] = response.status_code
+        response.raise_for_status()
+        transcript = str(response.json().get("text", "")).strip()
+        actual_cost = min(per_call_cap, max(0.0, float(duration_seconds or 120.0) / 60.0 * 0.0045))
+        ledger.reconcile(reservation_id, actual_cost)
+        event.update({
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "transcript_chars": len(transcript), "cost_usd": actual_cost,
+            "finish_reason": "success",
+        })
+        _voice_trace().write(event)
+        return transcript
+    except Exception as exc:
+        event.update({
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "error_code": type(exc).__name__, "finish_reason": "error",
+        })
+        _voice_trace().write(event)
+        raise
 
 
 async def _transcribe_deepgram_async(

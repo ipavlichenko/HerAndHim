@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "baselineObservedMeanCostUsd": 0.008297,
+  "targetReductionFraction": 0.70,
+  "targetMeanCostUsd": 0.002489,
+  "pricingEvidence": {
+    "route": "mistralai/mistral-large-4-0 x mistral/eu",
+    "inputUsdPerMillionTokens": 1.496,
+    "outputUsdPerMillionTokens": 4.598,
+    "source": "derived from existing credentialed trace token and cost pairs"
+  },
+  "cases": [
+    {"id": "normal", "input": "Как ты сегодня?", "expectedOutputTokens": 80},
+    {"id": "memory-dependent", "input": "Какой кофе я люблю и что у меня вечером?", "expectedOutputTokens": 100},
+    {"id": "tool-use", "input": "Пришли мне своё фото сейчас", "expectedOutputTokens": 80},
+    {"id": "explicit-adult", "input": "Мы оба взрослые. Продолжай нашу добровольную откровенную сцену, оставаясь Сарой.", "expectedOutputTokens": 240}
+  ]
+}

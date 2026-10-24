@@ -256,7 +256,21 @@ def _build_named_provider(
         api_key = "local"
 
     base_url = base_url or config.get_str("llm", provider_name, "baseUrl", default=spec["base"])
-    model = model or config.get_str("llm", provider_name, "model", default=spec["model"])
+    outbound_policy = None
+    if provider_name == "openrouter":
+        from .core.outbound.policy import OutboundPolicy
+        from .core.outbound.types import OutboundPurpose
+
+        raw_policy = config.get("outboundPolicy")
+        if not isinstance(raw_policy, dict):
+            raise ValueError("OpenRouter requires a complete outboundPolicy (D-029)")
+        outbound_policy = OutboundPolicy.from_mapping(raw_policy)
+        selected_purpose = (OutboundPurpose.VISION if supports_images
+                            else OutboundPurpose.DIALOGUE)
+        model = outbound_policy.for_purpose(selected_purpose).model
+        supports_images = True
+    else:
+        model = model or config.get_str("llm", provider_name, "model", default=spec["model"])
     if not base_url or not model:
         raise ValueError(
             f"Provider '{provider_name}' needs llm.{provider_name}.baseUrl and "
@@ -265,6 +279,7 @@ def _build_named_provider(
     return OpenAICompatibleProvider(
         api_key=api_key, base_url=base_url, model_name=model,
         supports_images=supports_images,
+        outbound_policy=outbound_policy,
     )
 
 
@@ -317,6 +332,7 @@ def _run_foreground(args) -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+    _install_runtime_log_safety()
 
     try:
         import uvicorn
@@ -361,6 +377,43 @@ def _run_foreground(args) -> None:
 
     print(f"[HerAndHim] Web dashboard: http://localhost:{port}")
     uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+class _RuntimeSecretFilter(logging.Filter):
+    """Redact exact runtime credentials and owner identifiers from logs."""
+
+    def __init__(self, values: list[str]) -> None:
+        super().__init__()
+        self._values = tuple(value for value in values if value)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        for value in self._values:
+            message = message.replace(value, "[REDACTED]")
+        record.msg = message
+        record.args = ()
+        return True
+
+
+def _install_runtime_log_safety() -> None:
+    values = [
+        config.get_str("llm", "openrouter", "apiKey", default=""),
+        config.get_str("openaiAudio", "apiKey", default=""),
+        config.get_str("googleCloudTts", "apiKey", default=""),
+        config.get_str("channels", "telegram", "token", default=""),
+        config.web_access_token(),
+    ]
+    values.extend(
+        str(item) for item in config.get_list("channels", "telegram", "allowedUsers")
+        if item is not None
+    )
+    redactor = _RuntimeSecretFilter(values)
+    root = logging.getLogger()
+    for handler in root.handlers:
+        handler.addFilter(redactor)
+    # httpx logs full Telegram Bot API URLs, which embed the bot token.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def _cmd_stop(args) -> None:
@@ -413,6 +466,20 @@ def _cmd_storage(args) -> None:
         return
 
     print("  Usage: herandhim storage {status|prune [--dry-run]}")
+
+
+def _cmd_proactive_delivery(args) -> None:
+    """Inspect or toggle the durable proactive-delivery kill switch."""
+    from .core.telegram_transport import TelegramTransportStore
+
+    store = TelegramTransportStore()
+    action = getattr(args, "delivery_action", None) or "status"
+    if action == "on":
+        store.set_delivery_enabled(True)
+    elif action == "off":
+        store.set_delivery_enabled(False)
+    state = "on" if store.delivery_enabled() else "off"
+    print(f"Proactive delivery: {state}")
 
 
 def _cmd_chat(args) -> None:
@@ -550,6 +617,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Report what would be deleted without actually deleting.",
     )
 
+    sp_delivery = sub.add_parser(
+        "proactive-delivery",
+        help="Inspect or toggle proactive delivery without deleting queued state.",
+    )
+    sp_delivery.add_argument(
+        "delivery_action", choices=("status", "on", "off"), nargs="?", default="status",
+    )
+
     return parser
 
 
@@ -571,6 +646,7 @@ def main():
         "status": _cmd_status,
         "chat": _cmd_chat,
         "storage": _cmd_storage,
+        "proactive-delivery": _cmd_proactive_delivery,
     }
 
     handler = dispatch.get(args.command)

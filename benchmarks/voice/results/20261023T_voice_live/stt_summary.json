@@ -1,0 +1,47 @@
+{
+  "deepgram_nova3_ru": {
+    "calls": 12,
+    "critical_span_accuracy": 0.5,
+    "estimated_cost_usd": 0.00357008,
+    "mean_wer": 0.217629,
+    "median_latency_ms": 1099,
+    "p95_latency_ms": 1744,
+    "successes": 12
+  },
+  "google_chirp3_ru_eu": {
+    "calls": 12,
+    "critical_span_accuracy": null,
+    "estimated_cost_usd": 0,
+    "mean_wer": null,
+    "median_latency_ms": null,
+    "p95_latency_ms": null,
+    "successes": 0
+  },
+  "openai_gpt_transcribe_ru": {
+    "calls": 12,
+    "critical_span_accuracy": 0.807692,
+    "estimated_cost_usd": 0.00373611,
+    "mean_wer": 0.115741,
+    "median_latency_ms": 1075,
+    "p95_latency_ms": 1951,
+    "successes": 12
+  },
+  "openai_gpt_transcribe_ru_vocab_v1": {
+    "calls": 12,
+    "critical_span_accuracy": 0.846154,
+    "estimated_cost_usd": 0.00373611,
+    "mean_wer": 0.08836,
+    "median_latency_ms": 960,
+    "p95_latency_ms": 1418,
+    "successes": 12
+  },
+  "openai_gpt_transcribe_ru_vocab_v2": {
+    "calls": 12,
+    "critical_span_accuracy": 0.961538,
+    "estimated_cost_usd": 0.00373611,
+    "mean_wer": 0.052249,
+    "median_latency_ms": 895,
+    "p95_latency_ms": 1195,
+    "successes": 12
+  }
+}

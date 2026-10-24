@@ -1,0 +1,244 @@
+{
+  "status": "FAIL",
+  "mode": "deterministic_local_mechanics",
+  "virtual_days_per_run": 180,
+  "runs": 9,
+  "total_virtual_days": 1620,
+  "rows": [
+    {
+      "scenario": "active_evolving_facts",
+      "seed": 17,
+      "status": "PASS",
+      "virtual_days": 180,
+      "compactions": 11,
+      "proactive_total": 323,
+      "max_unanswered": 2,
+      "personal_date_messages": {
+        "120": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 1.0,
+      "compaction_summaries_in_context": 1,
+      "deterministic_provider_calls": 22,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": true,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "active_evolving_facts/seed-17/transcript.md"
+    },
+    {
+      "scenario": "active_evolving_facts",
+      "seed": 41,
+      "status": "PASS",
+      "virtual_days": 180,
+      "compactions": 11,
+      "proactive_total": 325,
+      "max_unanswered": 2,
+      "personal_date_messages": {
+        "120": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 1.0,
+      "compaction_summaries_in_context": 1,
+      "deterministic_provider_calls": 22,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": true,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "active_evolving_facts/seed-41/transcript.md"
+    },
+    {
+      "scenario": "active_evolving_facts",
+      "seed": 97,
+      "status": "PASS",
+      "virtual_days": 180,
+      "compactions": 11,
+      "proactive_total": 319,
+      "max_unanswered": 2,
+      "personal_date_messages": {
+        "120": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 1.0,
+      "compaction_summaries_in_context": 1,
+      "deterministic_provider_calls": 22,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": true,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "active_evolving_facts/seed-97/transcript.md"
+    },
+    {
+      "scenario": "weekly_contact_and_plan_change",
+      "seed": 17,
+      "status": "FAIL",
+      "virtual_days": 180,
+      "compactions": 4,
+      "proactive_total": 53,
+      "max_unanswered": 3,
+      "personal_date_messages": {
+        "90": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 0.0,
+      "compaction_summaries_in_context": 1,
+      "deterministic_provider_calls": 8,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": false,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "weekly_contact_and_plan_change/seed-17/transcript.md"
+    },
+    {
+      "scenario": "weekly_contact_and_plan_change",
+      "seed": 41,
+      "status": "FAIL",
+      "virtual_days": 180,
+      "compactions": 4,
+      "proactive_total": 53,
+      "max_unanswered": 3,
+      "personal_date_messages": {
+        "90": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 0.0,
+      "compaction_summaries_in_context": 1,
+      "deterministic_provider_calls": 8,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": false,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "weekly_contact_and_plan_change/seed-41/transcript.md"
+    },
+    {
+      "scenario": "weekly_contact_and_plan_change",
+      "seed": 97,
+      "status": "FAIL",
+      "virtual_days": 180,
+      "compactions": 4,
+      "proactive_total": 53,
+      "max_unanswered": 3,
+      "personal_date_messages": {
+        "90": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 0.0,
+      "compaction_summaries_in_context": 1,
+      "deterministic_provider_calls": 8,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": false,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "weekly_contact_and_plan_change/seed-97/transcript.md"
+    },
+    {
+      "scenario": "long_silence",
+      "seed": 17,
+      "status": "PASS",
+      "virtual_days": 180,
+      "compactions": 0,
+      "proactive_total": 3,
+      "max_unanswered": 3,
+      "personal_date_messages": {
+        "100": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 1.0,
+      "compaction_summaries_in_context": 0,
+      "deterministic_provider_calls": 0,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": true,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "long_silence/seed-17/transcript.md"
+    },
+    {
+      "scenario": "long_silence",
+      "seed": 41,
+      "status": "PASS",
+      "virtual_days": 180,
+      "compactions": 0,
+      "proactive_total": 3,
+      "max_unanswered": 3,
+      "personal_date_messages": {
+        "100": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 1.0,
+      "compaction_summaries_in_context": 0,
+      "deterministic_provider_calls": 0,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": true,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "long_silence/seed-41/transcript.md"
+    },
+    {
+      "scenario": "long_silence",
+      "seed": 97,
+      "status": "PASS",
+      "virtual_days": 180,
+      "compactions": 0,
+      "proactive_total": 3,
+      "max_unanswered": 3,
+      "personal_date_messages": {
+        "100": 1
+      },
+      "memory_accuracy": 1.0,
+      "commitment_accuracy": 1.0,
+      "compaction_summaries_in_context": 0,
+      "deterministic_provider_calls": 0,
+      "cloud_calls": 0,
+      "assertions": {
+        "memory_accuracy": true,
+        "commitment_accuracy": true,
+        "bounded_compaction_chain": true,
+        "restart_integrity": true,
+        "unanswered_boundary": true,
+        "personal_date_once": true
+      },
+      "transcript": "long_silence/seed-97/transcript.md"
+    }
+  ],
+  "remaining_gate": "credentialed exact-route cloud canary and qualitative transcript review"
+}

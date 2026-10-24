@@ -1,0 +1,50 @@
+{
+  "cap_usd": 0.1,
+  "calls": [
+    {
+      "index": 1,
+      "label": "city_and_commitment",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00024937,
+      "reported_cost_usd": 0.00024937,
+      "status": "succeeded"
+    },
+    {
+      "index": 2,
+      "label": "project_rename",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00022517,
+      "reported_cost_usd": 0.00022517,
+      "status": "succeeded"
+    },
+    {
+      "index": 3,
+      "label": "closed_plan",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00025311,
+      "reported_cost_usd": 0.00025311,
+      "status": "succeeded"
+    },
+    {
+      "index": 4,
+      "label": "gentle_follow_up",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00381304,
+      "reported_cost_usd": 0.00381304,
+      "status": "succeeded"
+    },
+    {
+      "index": 5,
+      "label": "personal_date_exception",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.003752936,
+      "reported_cost_usd": 0.003752936,
+      "status": "succeeded"
+    }
+  ]
+}

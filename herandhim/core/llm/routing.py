@@ -33,6 +33,10 @@ class RoutingProvider(LLMProvider):
     def __init__(self, primary: LLMProvider, vision: LLMProvider) -> None:
         self.primary = primary
         self.vision = vision
+        self.requires_outbound_purpose = bool(
+            getattr(primary, "requires_outbound_purpose", False)
+            or getattr(vision, "requires_outbound_purpose", False)
+        )
 
     # ── Diagnostics ────────────────────────────────────────────────────────
     @property
@@ -50,7 +54,14 @@ class RoutingProvider(LLMProvider):
                         return True
         return False
 
-    def _pick(self, messages: list[dict[str, Any]]) -> LLMProvider:
+    def _pick(self, messages: list[dict[str, Any]], purpose: object = None) -> LLMProvider:
+        from ..outbound.types import OutboundPurpose
+
+        if purpose is not None:
+            parsed = OutboundPurpose.parse(purpose)
+            if parsed is OutboundPurpose.VISION:
+                return self.vision
+            return self.primary
         if self._has_image(messages):
             logger.info(
                 "[Routing] image detected → vision provider (%s)",
@@ -66,7 +77,8 @@ class RoutingProvider(LLMProvider):
         tool_choice: Any = "auto",
         **kwargs: Any,
     ) -> Any:
-        return self._pick(messages).chat(
+        purpose = kwargs.get("purpose")
+        return self._pick(messages, purpose).chat(
             messages, tools=tools, tool_choice=tool_choice, **kwargs,
         )
 
@@ -77,7 +89,8 @@ class RoutingProvider(LLMProvider):
         tool_choice: Any = "auto",
         **kwargs: Any,
     ) -> Generator[dict[str, Any], None, Any]:
-        provider = self._pick(messages)
+        purpose = kwargs.get("purpose")
+        provider = self._pick(messages, purpose)
         # `yield from` yields the inner generator's deltas, and its expression
         # value is the inner's return value (the final MockResponse). We MUST
         # explicitly `return` that — otherwise the outer generator falls off

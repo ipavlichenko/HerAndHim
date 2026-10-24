@@ -150,10 +150,13 @@ def decide(
     Raises on any provider/parse failure — the caller falls back to a plain
     ADD (the pre-consolidation behaviour).
     """
+    purpose_kw = ({"purpose": "memory_consolidation"}
+                  if getattr(provider, "requires_outbound_purpose", False) else {})
     response = provider.chat(
         messages=[{"role": "user", "content": _build_prompt(key, content, similar)}],
         tools=[],
         tool_choice="none",
+        **purpose_kw,
     )
     raw = _strip_fences(response.choices[0].message.content or "")
     data = json.loads(raw)

@@ -10,6 +10,7 @@ pins a behaviour a user would notice losing.
 
 from __future__ import annotations
 
+import base64
 import os
 import tempfile
 from datetime import date, datetime, timedelta
@@ -327,23 +328,55 @@ def _gen(monkeypatch, provider, **over):
     from herandhim.core.image_gen import generator as G
     monkeypatch.setattr(G.time, "sleep", lambda *a: None)  # don't wait in tests
     env, base, model, _ref = G.PROVIDERS[provider]
+    policy = None
+    if provider == "openrouter":
+        from herandhim.core.outbound.policy import OutboundPolicy
+        from tests.test_outbound_contract import policy_mapping
+        reference_asset = over.pop("reference_asset", "/canonical/reference.png")
+        policy = OutboundPolicy.from_mapping(policy_mapping(
+            image_generation={"model": model, "allowedReferenceAssets": [reference_asset]},
+        ))
     return G.SeedreamGenerator(api_key=over.pop("key", "k"), provider=provider,
                                base_url=over.pop("base", base) or "http://x",
-                               model=over.pop("model", model) or "m")
+                               model=over.pop("model", model) or "m",
+                               outbound_policy=policy,
+                               cost_ledger=over.pop("cost_ledger", None))
 
 
-def test_openrouter_unwraps_the_data_url_it_answers_with(monkeypatch):
-    """It returns images inline as data URLs; callers must see plain base64."""
+def test_openrouter_uses_dedicated_images_api_contract(monkeypatch, tmp_path):
+    """The D-031 adapter sends one reference and accepts one base64 image."""
     from herandhim.core.image_gen import generator as G
+    from herandhim.core.outbound.costs import CostLedger
     seen = {}
     monkeypatch.setattr(G.requests, "post", lambda url, **kw: (
         seen.update(url=url, body=kw.get("json")),
-        _resp({"choices": [{"message": {"images": [
-            {"image_url": {"url": "data:image/png;base64,aGk="}}]}}]}))[1])
-    out = _gen(monkeypatch, "openrouter").generate("selfie")
-    assert seen["url"].endswith("/chat/completions")
-    assert seen["body"]["modalities"] == ["image", "text"]
-    assert out == [{"b64": "aGk="}]
+        _resp({"data": [{"b64_json": base64.b64encode(base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )).decode()}], "usage": {"cost": 0.018}}))[1])
+    ref = tmp_path / "canonical.png"
+    ref.write_bytes(base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    ))
+    out = _gen(
+        monkeypatch, "openrouter", reference_asset=str(ref),
+        cost_ledger=CostLedger(tmp_path / "costs.sqlite3"),
+    ).generate(
+        "selfie", reference_image=str(ref),
+    )
+    assert seen["url"].endswith("/images")
+    assert seen["body"] == {
+        "model": "bytedance-seed/seedream-5-0-flash",
+        "prompt": "selfie",
+        "input_references": [{
+            "type": "image_url",
+            "image_url": {"url": seen["body"]["input_references"][0]["image_url"]["url"]},
+        }],
+        "resolution": "1K",
+        "aspect_ratio": "2:3",
+        "n": 1,
+    }
+    assert not ({"messages", "history", "memory", "provider", "modalities"} & seen["body"].keys())
+    assert len(out) == 1 and "b64" in out[0]
 
 
 def test_bfl_submits_then_polls_until_the_image_is_ready(monkeypatch):

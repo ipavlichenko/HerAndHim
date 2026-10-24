@@ -33,6 +33,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -248,8 +249,21 @@ class SessionStore:
             lines = [f"# Session: {session_id}\n\n"]
             for msg in to_save:
                 lines.append(self._msg_to_markdown(msg))
-            with open(path, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines))
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=".session-", suffix=".tmp", dir=self.base_dir,
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write("\n".join(lines))
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except OSError as exc:
             logger.error("[SessionStore] Failed to save session '%s': %s", session_id, exc)
 

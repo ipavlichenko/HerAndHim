@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 from datetime import datetime
 from typing import Any, Dict
 
@@ -128,8 +129,21 @@ class MemoryStorage:
             lines.append("")
 
         try:
-            with open(self._memory_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines))
+            fd, tmp_path = tempfile.mkstemp(
+                prefix=".memory-", suffix=".tmp", dir=self.memory_dir,
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write("\n".join(lines))
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, self._memory_file)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except OSError as e:
             print(f"Error saving MEMORY.md: {e}")
 

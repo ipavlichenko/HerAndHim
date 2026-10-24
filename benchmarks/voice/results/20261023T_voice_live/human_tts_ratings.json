@@ -1,0 +1,32 @@
+{
+  "status": "complete",
+  "rater": "owner",
+  "blinded": true,
+  "scale_note": "Qualitative owner evidence is preserved verbatim; no numeric score is invented.",
+  "cases": {
+    "warm_short": {
+      "A": {
+        "verdict": "reject",
+        "evidence_ru": "строгий, холодный и плохой"
+      },
+      "B": {
+        "verdict": "excellent",
+        "evidence_ru": "вариант отличный"
+      }
+    },
+    "B_remaining_nine": {
+      "B": {
+        "verdict": "accept",
+        "evidence_ru": "вроде норм звучит"
+      }
+    }
+  },
+  "selection": {
+    "blind_label": "B",
+    "route": "google_chirp3_zephyr_ru",
+    "provider": "google_cloud_text_to_speech",
+    "model_family": "Chirp 3 HD",
+    "voice": "ru-RU-Chirp3-HD-Zephyr",
+    "audio_encoding": "OGG_OPUS"
+  }
+}

@@ -24,7 +24,7 @@ from herandhim.core import tts
 def _isolated_home(monkeypatch, tmp_path):
     monkeypatch.setenv("HERANDHIM_HOME", str(tmp_path))
     monkeypatch.setattr(config, "_HERANDHIM_BASE", tmp_path)
-    for var in ("ELEVENLABS_API_KEY", "HERANDHIM_TTS_PROVIDER",
+    for var in ("ELEVENLABS_API_KEY", "GOOGLE_CLOUD_TTS_API_KEY", "HERANDHIM_TTS_PROVIDER",
                 "HERANDHIM_TTS_LOCAL_VOICE", "HERANDHIM_REPLY_IN_KIND_VOICE"):
         monkeypatch.delenv(var, raising=False)
     config._configs.clear()
@@ -228,6 +228,67 @@ def test_an_unknown_provider_value_degrades_to_auto(tmp_path, monkeypatch):
     _elevenlabs_answers(monkeypatch)
     clip = asyncio.run(tts.synthesize_async("晚安"))
     assert clip.format == "mp3"
+
+
+def test_google_exact_route_is_single_call_budgeted_and_metadata_only(tmp_path, monkeypatch):
+    _configure(tmp_path, {
+        "tts": {"provider": "google_cloud"},
+        "googleCloudTts": {
+            "apiKey": "g-key", "maxCostUsdPerCall": 0.012,
+            "maxCostUsdPerDay": 0.50,
+        },
+    })
+    seen: list[dict] = []
+
+    class Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"audioContent": "T2dnUw=="}
+
+    class Client:
+        def __init__(self, **kwargs):
+            seen.append({"init": kwargs})
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, url, **kwargs):
+            seen.append({"url": url, **kwargs})
+            return Response()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", Client)
+
+    clip = asyncio.run(tts.synthesize_async("Спокойной ночи"))
+    assert clip.data == b"OggS"
+    assert clip.format == "ogg" and clip.telegram_ready
+    calls = [row for row in seen if "url" in row]
+    assert len(calls) == 1
+    assert calls[0]["url"].startswith("https://eu-texttospeech.googleapis.com/")
+    assert calls[0]["json"]["voice"]["name"] == "ru-RU-Chirp3-HD-Zephyr"
+    assert calls[0]["json"]["audioConfig"]["audioEncoding"] == "OGG_OPUS"
+    trace = json.loads((tmp_path / "context/state/outbound_trace.jsonl").read_text())
+    assert trace["retry_count"] == 0
+    assert trace["voice"] == "ru-RU-Chirp3-HD-Zephyr"
+    assert not ({"text", "audio", "prompt", "credential"} & trace.keys())
+
+
+def test_google_route_fails_closed_without_budget(tmp_path):
+    _configure(tmp_path, {
+        "tts": {"provider": "google_cloud"},
+        "googleCloudTts": {"apiKey": "g-key"},
+    })
+    from herandhim.core.outbound.policy import PolicyError
+
+    with pytest.raises(PolicyError, match="maxCostUsdPerCall"):
+        asyncio.run(tts.synthesize_async("Спокойной ночи"))
 
 
 # ── Local voice configuration ─────────────────────────────────────────────

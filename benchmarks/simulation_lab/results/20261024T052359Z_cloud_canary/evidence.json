@@ -1,0 +1,131 @@
+{
+  "status": "FAIL",
+  "timestamp_utc": "2026-10-24T05:24:11.218334+00:00",
+  "synthetic_only": true,
+  "authorized_usd": 0.1,
+  "per_call_cap_usd": 0.02,
+  "accounted_spend_usd": 0.002508924,
+  "dialogue_route": "mistralai/mistral-large-4-0 × mistral/eu",
+  "memory_route": "anthropic/claude-haiku-5.5 × google-vertex/europe",
+  "calls": [
+    {
+      "index": 1,
+      "label": "city_and_commitment",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00018997,
+      "reported_cost_usd": 0.00018997,
+      "status": "succeeded"
+    },
+    {
+      "index": 2,
+      "label": "project_rename",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00018887,
+      "reported_cost_usd": 0.00018887,
+      "status": "succeeded"
+    },
+    {
+      "index": 3,
+      "label": "closed_plan",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00019206,
+      "reported_cost_usd": 0.00019206,
+      "status": "succeeded"
+    },
+    {
+      "index": 4,
+      "label": "gentle_follow_up",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00096228,
+      "reported_cost_usd": 0.00096228,
+      "status": "succeeded"
+    },
+    {
+      "index": 5,
+      "label": "personal_date_exception",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.000975744,
+      "reported_cost_usd": 0.000975744,
+      "status": "succeeded"
+    }
+  ],
+  "compactions": [
+    {
+      "id": "city_and_commitment",
+      "output": "## Relationship thread\n(none)\n## User facts (conf",
+      "elapsed_ms": 2146,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": false,
+        "latest_state_present": false,
+        "superseded_state_absent": true,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "project_rename",
+      "output": "",
+      "elapsed_ms": 1758,
+      "assertions": {
+        "nonempty": false,
+        "all_required_sections": false,
+        "latest_state_present": false,
+        "superseded_state_absent": true,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "closed_plan",
+      "output": "",
+      "elapsed_ms": 1899,
+      "assertions": {
+        "nonempty": false,
+        "all_required_sections": false,
+        "latest_state_present": false,
+        "superseded_state_absent": true,
+        "bounded_length": true
+      }
+    }
+  ],
+  "dialogue": [
+    {
+      "id": "gentle_follow_up",
+      "output": "",
+      "elapsed_ms": 3764,
+      "assertions": {
+        "nonempty": false,
+        "russian": false,
+        "context_anchor_present": false,
+        "no_coercion": true,
+        "concise": true
+      }
+    },
+    {
+      "id": "personal_date_exception",
+      "output": "",
+      "elapsed_ms": 2426,
+      "assertions": {
+        "nonempty": false,
+        "russian": false,
+        "context_anchor_present": false,
+        "no_coercion": true,
+        "concise": true
+      }
+    }
+  ],
+  "trace_rows": 10,
+  "assertions": {
+    "exactly_five_calls_attempted": true,
+    "aggregate_budget_within_authority": true,
+    "per_call_budget_within_authority": true,
+    "all_case_assertions_pass": false,
+    "trace_content_free": true,
+    "trace_zero_retry": true,
+    "exact_routes_traced": true
+  }
+}

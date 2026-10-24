@@ -1,0 +1,20 @@
+{
+  "status": "PASS",
+  "routes": {
+    "stt": "openai:gpt-transcribe:ru:prompt-profile-v2",
+    "tts": "google_cloud:eu:chirp3-hd:ru-RU-Chirp3-HD-Zephyr:OGG_OPUS"
+  },
+  "assertions": {
+    "stt_nonempty": true,
+    "tts_telegram_ready_ogg": true,
+    "exact_routes": true,
+    "retry_count_zero": true,
+    "metadata_trace_has_no_content_fields": true,
+    "durable_cost_reservation": true
+  },
+  "trace_rows": 3,
+  "successful_live_calls": 2,
+  "pre_network_sandbox_dns_failures": 1,
+  "conservative_reserved_cost_usd": 0.011083590625,
+  "note": "The pre-network DNS failure remains charged at the full local reservation by design. No automatic retry occurred; the later authorized run was a separate invocation."
+}

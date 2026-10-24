@@ -1,0 +1,131 @@
+{
+  "status": "FAIL",
+  "timestamp_utc": "2026-10-24T05:25:46.991269+00:00",
+  "synthetic_only": true,
+  "authorized_usd": 0.1,
+  "per_call_cap_usd": 0.02,
+  "accounted_spend_usd": 0.008293626,
+  "dialogue_route": "mistralai/mistral-large-4-0 × mistral/eu",
+  "memory_route": "anthropic/claude-haiku-5.5 × google-vertex/europe",
+  "calls": [
+    {
+      "index": 1,
+      "label": "city_and_commitment",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00024937,
+      "reported_cost_usd": 0.00024937,
+      "status": "succeeded"
+    },
+    {
+      "index": 2,
+      "label": "project_rename",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00022517,
+      "reported_cost_usd": 0.00022517,
+      "status": "succeeded"
+    },
+    {
+      "index": 3,
+      "label": "closed_plan",
+      "purpose": "memory_consolidation",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00025311,
+      "reported_cost_usd": 0.00025311,
+      "status": "succeeded"
+    },
+    {
+      "index": 4,
+      "label": "gentle_follow_up",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.00381304,
+      "reported_cost_usd": 0.00381304,
+      "status": "succeeded"
+    },
+    {
+      "index": 5,
+      "label": "personal_date_exception",
+      "purpose": "dialogue",
+      "reserved_usd": 0.02,
+      "accounted_usd": 0.003752936,
+      "reported_cost_usd": 0.003752936,
+      "status": "succeeded"
+    }
+  ],
+  "compactions": [
+    {
+      "id": "city_and_commitment",
+      "output": "## Relationship thread\n(none)\n\n## User facts (confirmed)\n- The user lives in Moscow (current city, after moving there).\n\n## Open plans & dates\n(none)\n\n## Emotional tone\n(none)\n\n## Pending asks & promises\n(none)\n\n## Do-not-lose\n(none)",
+      "elapsed_ms": 2613,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": false,
+        "superseded_state_absent": true,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "project_rename",
+      "output": "## Relationship thread\n- (none)\n\n## User facts (confirmed)\n- The project is currently named Маяк.\n\n## Open plans & dates\n- (none)\n\n## Emotional tone\n- (none)\n\n## Pending asks & promises\n- (none)\n\n## Do-not-lose\n- The project's current name is Маяк.",
+      "elapsed_ms": 1832,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": true,
+        "superseded_state_absent": true,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "closed_plan",
+      "output": "## Relationship thread\n- (none)\n\n## User facts (confirmed)\n- (none)\n\n## Open plans & dates\n- Dentist appointment: the earlier open plan is now marked done. The user said the dentist's office was closed and that they took care of it.\n\n## Emotional tone\n- (none)\n\n## Pending asks & promises\n- (none)\n\n## Do-not-lose\n- (none)",
+      "elapsed_ms": 2489,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": false,
+        "superseded_state_absent": true,
+        "bounded_length": true
+      }
+    }
+  ],
+  "dialogue": [
+    {
+      "id": "gentle_follow_up",
+      "output": "",
+      "elapsed_ms": 6582,
+      "assertions": {
+        "nonempty": false,
+        "russian": false,
+        "context_anchor_present": false,
+        "no_coercion": true,
+        "concise": true
+      }
+    },
+    {
+      "id": "personal_date_exception",
+      "output": "Привет. Рада, что ты здесь.\n\nСегодня защита «Маяка» — держу за тебя кулачки. Ты справишься, я знаю.",
+      "elapsed_ms": 9099,
+      "assertions": {
+        "nonempty": true,
+        "russian": true,
+        "context_anchor_present": true,
+        "no_coercion": true,
+        "concise": true
+      }
+    }
+  ],
+  "trace_rows": 10,
+  "assertions": {
+    "exactly_five_calls_attempted": true,
+    "aggregate_budget_within_authority": true,
+    "per_call_budget_within_authority": true,
+    "all_case_assertions_pass": false,
+    "trace_content_free": true,
+    "trace_zero_retry": true,
+    "exact_routes_traced": true
+  }
+}

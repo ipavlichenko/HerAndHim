@@ -51,6 +51,9 @@ class SelfieScheduler:
     # ── Schedule wiring ─────────────────────────────────────────────────
 
     def _read_schedule(self) -> list[str]:
+        configured = config.get("selfie", "schedule", default=None)
+        if configured == []:
+            return []
         raw = config.get_list("selfie", "schedule") or DEFAULT_SCHEDULE
         cleaned: list[str] = []
         for t in raw:

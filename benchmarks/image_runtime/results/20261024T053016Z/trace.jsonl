@@ -1,0 +1,2 @@
+{"purpose":"image_generation","policy_version":1,"transport":"images_api","model":"bytedance-seed/seedream-5-0-flash","message_count":0,"text_bytes":438,"estimated_input_tokens":110,"image_count":1,"image_bytes":118510,"redactions":{"pem":0,"auth_header":0,"token":0},"budget_decision":"allowed","retry_count":0}
+{"purpose":"image_generation","policy_version":1,"budget_decision":"allowed","http_status":200,"latency_ms":11094,"returned_model":null,"returned_provider":null,"input_tokens":110,"output_tokens":3610,"cost_usd":0.018,"retry_count":0}

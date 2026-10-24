@@ -43,23 +43,30 @@ silently falls back to text — a reply is never dropped.
 
 from __future__ import annotations
 
+import base64
 import logging
 import random
 import re
 import subprocess
+import time
 from dataclasses import dataclass
+from pathlib import Path
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
 _ELEVENLABS_API = "https://api.elevenlabs.io/v1/text-to-speech"
 _ELEVENLABS_DEFAULT_VOICE = "ByhETIclHirOlWnWKhHc"
 _ELEVENLABS_DEFAULT_MODEL = "eleven_multilingual_v2"
+_GOOGLE_TTS_API = "https://eu-texttospeech.googleapis.com/v1/text:synthesize"
+_GOOGLE_TTS_VOICE = "ru-RU-Chirp3-HD-Zephyr"
+_GOOGLE_TTS_ENCODING = "OGG_OPUS"
 
 _DEFAULT_PIPER_VOICE = "zh_CN-huayan-medium"
 _DEFAULT_KOKORO_VOICE = "zf_xiaobei"
 _DEFAULT_KOKORO_LANG = "z"  # Mandarin
 
-_VALID_PROVIDERS = ("auto", "elevenlabs", "local")
+_VALID_PROVIDERS = ("auto", "elevenlabs", "local", "google_cloud")
 
 _NO_KEY_MSG = (
     "Voice replies are not enabled yet.\n\n"
@@ -114,6 +121,30 @@ def _get_provider() -> str:
 def _get_key() -> str | None:
     from .. import config
     return config.get("elevenlabs", "apiKey", env="ELEVENLABS_API_KEY") or None
+
+
+def _get_google_key() -> str | None:
+    from .. import config
+    return config.get("googleCloudTts", "apiKey", env="GOOGLE_CLOUD_TTS_API_KEY") or None
+
+
+def _positive_google_cap(name: str) -> float:
+    from .. import config
+    from .outbound.policy import PolicyError
+
+    try:
+        value = float(config.get("googleCloudTts", name, default=0) or 0)
+    except (TypeError, ValueError) as exc:
+        raise PolicyError(f"googleCloudTts.{name} must be a positive number") from exc
+    if value <= 0:
+        raise PolicyError(f"googleCloudTts.{name} must be positive")
+    return value
+
+
+def _voice_trace():
+    from .. import config
+    from .outbound.trace import OutboundTrace
+    return OutboundTrace(Path(config.HERANDHIM_HOME) / "context" / "state" / "outbound_trace.jsonl")
 
 
 def _get_elevenlabs_voice() -> str:
@@ -329,6 +360,55 @@ async def _synthesize_elevenlabs_async(key: str, text: str) -> VoiceClip:
         return VoiceClip(data=resp.content, format="mp3")
 
 
+async def _synthesize_google_async(key: str, text: str) -> VoiceClip:
+    """One exact regional Google TTS call: pinned voice, no retry or fallback."""
+    import httpx
+
+    from .outbound.costs import CostLedger
+
+    per_call_cap = _positive_google_cap("maxCostUsdPerCall")
+    daily_cap = _positive_google_cap("maxCostUsdPerDay")
+    ledger = CostLedger()
+    reservation_id = ledger.reserve("voice_tts", per_call_cap, daily_cap)
+    request_id = uuid4().hex
+    started = time.monotonic()
+    event = {
+        "timestamp": int(time.time()), "request_id": request_id,
+        "purpose": "voice_tts", "policy_version": 1,
+        "transport": "google_cloud_text_to_speech", "model": "chirp3-hd",
+        "provider": "google_cloud", "text_chars": len(text),
+        "voice": _GOOGLE_TTS_VOICE, "audio_encoding": _GOOGLE_TTS_ENCODING,
+        "budget_decision": "reserved", "retry_count": 0,
+    }
+    body = {
+        "input": {"text": text},
+        "voice": {"languageCode": "ru-RU", "name": _GOOGLE_TTS_VOICE},
+        "audioConfig": {"audioEncoding": _GOOGLE_TTS_ENCODING},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(_GOOGLE_TTS_API, params={"key": key}, json=body)
+        event["http_status"] = response.status_code
+        response.raise_for_status()
+        audio = base64.b64decode(response.json()["audioContent"], validate=True)
+        actual_cost = min(per_call_cap, len(text) * 0.00003)
+        ledger.reconcile(reservation_id, actual_cost)
+        event.update({
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "audio_output_bytes": len(audio), "cost_usd": actual_cost,
+            "finish_reason": "success",
+        })
+        _voice_trace().write(event)
+        return VoiceClip(data=audio, format="ogg")
+    except Exception as exc:
+        event.update({
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "error_code": type(exc).__name__, "finish_reason": "error",
+        })
+        _voice_trace().write(event)
+        raise
+
+
 # ── Async entry point ─────────────────────────────────────────────────────────
 
 
@@ -341,6 +421,12 @@ async def synthesize_async(text: str) -> VoiceClip | None:
     """
     provider = _get_provider()
     key = _get_key()
+
+    if provider == "google_cloud":
+        google_key = _get_google_key()
+        if not google_key:
+            return None
+        return await _synthesize_google_async(google_key, text)
 
     if provider == "local":
         if not local_available():

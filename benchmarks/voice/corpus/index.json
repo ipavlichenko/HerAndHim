@@ -1,0 +1,398 @@
+{
+  "version": 1,
+  "language": "ru-RU",
+  "frozen_on": "2026-10-23",
+  "reference_texts_sha256": "6ceca21d997fe9744d9ab9b2019c28c4eec1d657809aaeed81afb76fe6c90448",
+  "generator": {
+    "engine": "piper-tts",
+    "engine_version": "1.8.0",
+    "engine_license": "GPL-3.0-or-later",
+    "ffmpeg_version": "9.0.1",
+    "clean_master_normalization": "uniform volume=0.85 headroom; no other acoustic processing",
+    "model_repository": "rhasspy/piper-voices",
+    "model_revision": "e9ef9dd26adb6a40a9b47198817cd8e96d01e7cb",
+    "network_during_synthesis": false
+  },
+  "licence_boundary": "Corpus is for the project's non-commercial benchmark. Files made with the Ruslan model remain subject to CC-BY-NC-SA-4.0 attribution/share-alike constraints; do not relicense the corpus as a whole.",
+  "voices": [
+    {
+      "id": "piper_ru_RU_denis_medium",
+      "dataset": "OHF-Voice/voice-datasets",
+      "dataset_license": "CC0-1.0",
+      "model_card": "https://huggingface.co/rhasspy/piper-voices/blob/e9ef9dd26adb6a40a9b47198817cd8e96d01e7cb/ru/ru_RU/denis/medium/MODEL_CARD",
+      "model_sha256": "15fab56e11a097858ee115545d0f697fc2a316c41a291a5362349fb870411b0a",
+      "config_sha256": "831c860dac0b5073eaa81610a0a638ec23d90a6cf8e5f871b4485c2cec3767c8"
+    },
+    {
+      "id": "piper_ru_RU_dmitri_medium",
+      "dataset": "OHF-Voice/voice-datasets",
+      "dataset_license": "CC0-1.0",
+      "model_card": "https://huggingface.co/rhasspy/piper-voices/blob/e9ef9dd26adb6a40a9b47198817cd8e96d01e7cb/ru/ru_RU/dmitri/medium/MODEL_CARD",
+      "model_sha256": "f073356ebc4bd0f80c5af58df2953a5988bd5bdab1eb38635ce960b071fbefcb",
+      "config_sha256": "667ef3117bc642c2892dff7690d8bdc8ca4228aeaa783b2dc1416df632855e0d"
+    },
+    {
+      "id": "piper_ru_RU_ruslan_medium",
+      "dataset": "RUSLAN speech corpus",
+      "dataset_license": "CC-BY-NC-SA-4.0",
+      "model_card": "https://huggingface.co/rhasspy/piper-voices/blob/e9ef9dd26adb6a40a9b47198817cd8e96d01e7cb/ru/ru_RU/ruslan/medium/MODEL_CARD",
+      "model_sha256": "72a5f88e0b20928064eb45d88e1daa21f8af62d18613580d32cbb4aed48dcf7f",
+      "config_sha256": "706a4fb17bc304abd07809b552deae615e64dcbffbfbd09854ba37ca59e88117"
+    }
+  ],
+  "entries": [
+    {
+      "case_id": "casual_clean",
+      "reference_text": "Слушай, я сегодня задержусь минут на двадцать, но потом обязательно напишу.",
+      "critical": [
+        "двадцать",
+        "обязательно"
+      ],
+      "voice_id": "piper_ru_RU_denis_medium",
+      "condition": "clean",
+      "condition_recipe": "No acoustic post-processing before Opus encoding.",
+      "clean_master": {
+        "path": "corpus/masters/casual_clean.wav",
+        "duration_seconds": 4.841361,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 213582,
+        "sha256": "3fd21f336d24cd5fdbe8a51595529fb18e97cbf692b0afb9f7719157d4ca0ec6"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/casual_clean.ogg",
+        "duration_seconds": 4.847875,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 19953,
+        "sha256": "5f9333f8a997aa0306a407dfe23bc77fb96bb7b17e3eca6c9e25310d1f26bb2e"
+      }
+    },
+    {
+      "case_id": "question_intent",
+      "reference_text": "Ты правда думаешь, что нам стоит перенести встречу на пятницу?",
+      "critical": [
+        "пятницу"
+      ],
+      "voice_id": "piper_ru_RU_dmitri_medium",
+      "condition": "clean",
+      "condition_recipe": "No acoustic post-processing before Opus encoding.",
+      "clean_master": {
+        "path": "corpus/masters/question_intent.wav",
+        "duration_seconds": 3.006984,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 132686,
+        "sha256": "c979e76c6360b7c1c674d951379b42131928dfd1f21884d8d9c25bef4201e0eb"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/question_intent.ogg",
+        "duration_seconds": 3.0135,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 12474,
+        "sha256": "9cd825e5dbbb563e65622bf2cb1afc229a9248c968b26d5cca8f93be3d634d49"
+      }
+    },
+    {
+      "case_id": "numbers_dates",
+      "reference_text": "Запиши: двадцать третьего октября в восемнадцать сорок, бюджет — триста пятьдесят тысяч рублей.",
+      "critical": [
+        "23 октября",
+        "18:40",
+        "350000"
+      ],
+      "voice_id": "piper_ru_RU_denis_medium",
+      "condition": "clean",
+      "condition_recipe": "No acoustic post-processing before Opus encoding.",
+      "clean_master": {
+        "path": "corpus/masters/numbers_dates.wav",
+        "duration_seconds": 5.990748,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 264270,
+        "sha256": "43f477399cc875e916d26dcdf647c661588c3b42fcda79e650cba14dde971a23"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/numbers_dates.ogg",
+        "duration_seconds": 5.99725,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 24597,
+        "sha256": "6141531a3ae85c8471f079788d520780d7fa904c0e3b7dedd232554429bf234e"
+      }
+    },
+    {
+      "case_id": "names_terms",
+      "reference_text": "На ревью обсудим LeSS, Scrum и карту причинно-следственных связей с Александром.",
+      "critical": [
+        "LeSS",
+        "Scrum",
+        "Александром"
+      ],
+      "voice_id": "piper_ru_RU_dmitri_medium",
+      "condition": "clean",
+      "condition_recipe": "No acoustic post-processing before Opus encoding.",
+      "clean_master": {
+        "path": "corpus/masters/names_terms.wav",
+        "duration_seconds": 4.040272,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 178254,
+        "sha256": "1e3107ac87d16340cbec7027b4d5a47121b5ac5a3d918c0434043f3a116b511f"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/names_terms.ogg",
+        "duration_seconds": 4.046792,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 16713,
+        "sha256": "888f08948fc12d7809871bed9de279b75eed809992d81965fc900fd3efa090ee"
+      },
+      "pronunciation_only_synthesis_text": "На ревью обсудим лесс, скрам и карту причинно-следственных связей с Александром."
+    },
+    {
+      "case_id": "code_switch",
+      "reference_text": "Я обновил roadmap, но deployment пока не запускай — сначала нужен regression check.",
+      "critical": [
+        "roadmap",
+        "deployment",
+        "regression check"
+      ],
+      "voice_id": "piper_ru_RU_dmitri_medium",
+      "condition": "clean",
+      "condition_recipe": "No acoustic post-processing before Opus encoding.",
+      "clean_master": {
+        "path": "corpus/masters/code_switch.wav",
+        "duration_seconds": 4.307302,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 190030,
+        "sha256": "e0767370336a885c3f3f1ac390091f5ab2c7d56f447084876a890c72c19b03f2"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/code_switch.ogg",
+        "duration_seconds": 4.313813,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 17766,
+        "sha256": "065edeb9b4c55797a38a716e2f8f7cb11841a4884b952b61bb11ae16e0817c5e"
+      },
+      "pronunciation_only_synthesis_text": "Я обновил роудмэп, но deployment пока не запускай — сначала нужен регрэшн чек."
+    },
+    {
+      "case_id": "colloquial",
+      "reference_text": "Ну да, вроде всё нормально, просто я чё-то вымотался и хочу немного помолчать.",
+      "critical": [
+        "вымотался",
+        "помолчать"
+      ],
+      "voice_id": "piper_ru_RU_ruslan_medium",
+      "condition": "casual_fast",
+      "condition_recipe": "Deterministic atempo=1.12 post-processing.",
+      "clean_master": {
+        "path": "corpus/masters/colloquial.wav",
+        "duration_seconds": 4.620771,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 203854,
+        "sha256": "77f9f73865862341eb6923d5c01f7f5fe1c16140ab4a886606e2efdf499999ed"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/colloquial.ogg",
+        "duration_seconds": 4.139479,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 17037,
+        "sha256": "952e5e9852a7abd91438ef915fff98cb03b68ab3d148c618e5e874e62753e01d"
+      }
+    },
+    {
+      "case_id": "self_correction",
+      "reference_text": "Встретимся во вторник... нет, подожди, в среду после семи.",
+      "critical": [
+        "среду",
+        "после семи"
+      ],
+      "voice_id": "piper_ru_RU_ruslan_medium",
+      "condition": "hesitation",
+      "condition_recipe": "Lexical pauses/self-correction are encoded in the frozen reference text; no acoustic filter.",
+      "clean_master": {
+        "path": "corpus/masters/self_correction.wav",
+        "duration_seconds": 3.192744,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 140878,
+        "sha256": "f9971cb9da8b9b5380ab68d93c735b4271f9b59d3441935413458083450df2d7"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/self_correction.ogg",
+        "duration_seconds": 3.19925,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 13203,
+        "sha256": "73a2cea9120e841a7d9e922dee3e30e322bc8dacd21c622dff2d6729893406c5"
+      }
+    },
+    {
+      "case_id": "quiet_speech",
+      "reference_text": "Не буди меня утром, пожалуйста. Я сам напишу, когда проснусь.",
+      "critical": [
+        "не буди",
+        "сам напишу"
+      ],
+      "voice_id": "piper_ru_RU_dmitri_medium",
+      "condition": "quiet",
+      "condition_recipe": "Deterministic volume=0.22 post-processing.",
+      "clean_master": {
+        "path": "corpus/masters/quiet_speech.wav",
+        "duration_seconds": 3.366893,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 148558,
+        "sha256": "0634a4de9a7fa994f1ce1be17c4b4fb8c8b1b9bbe8fcae106481d8feb67e1a1d"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/quiet_speech.ogg",
+        "duration_seconds": 3.373396,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 13932,
+        "sha256": "1b03685501783ba3b59b3b79bccb79cae7d12e3529c73f79d6314c35a23b133e"
+      }
+    },
+    {
+      "case_id": "background_noise",
+      "reference_text": "Купи, пожалуйста, молоко, хлеб и зелёные яблоки, только не красные.",
+      "critical": [
+        "зелёные",
+        "не красные"
+      ],
+      "voice_id": "piper_ru_RU_ruslan_medium",
+      "condition": "cafe_noise_snr_10db",
+      "condition_recipe": "Deterministic algorithmic coloured-noise proxy, seed=20261023, mixed at measured 10 dB SNR; not a field recording.",
+      "clean_master": {
+        "path": "corpus/masters/background_noise.wav",
+        "duration_seconds": 4.086712,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 180302,
+        "sha256": "1c62a8a2e3f8c681ee53be0055e0f4aec68b4b121635619dfaaa902f8c0e9936"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/background_noise.ogg",
+        "duration_seconds": 4.093229,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 16875,
+        "sha256": "ce9ba25770130d7b4fd4bc27f03855b518a30457b0828d53b7d5a11734c5dde1"
+      }
+    },
+    {
+      "case_id": "telegram_codec",
+      "reference_text": "Это проверка голосового сообщения после перекодирования в телеграмный Opus.",
+      "critical": [
+        "перекодирования",
+        "Opus"
+      ],
+      "voice_id": "piper_ru_RU_denis_medium",
+      "condition": "ogg_opus_32k",
+      "condition_recipe": "No acoustic filter; Telegram-like mono OGG/Opus CBR 32 kbps encoding.",
+      "clean_master": {
+        "path": "corpus/masters/telegram_codec.wav",
+        "duration_seconds": 4.597551,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 202830,
+        "sha256": "d4685c40d78ff25ac72292f8461dc2a6b1fdf8580a6f70430ae7c564f4e502e8"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/telegram_codec.ogg",
+        "duration_seconds": 4.604062,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 18981,
+        "sha256": "91bb8b5d2ec78b9b3772addefab7f79f5d9c0bc74af4165f34be9b52ee9beb4d"
+      },
+      "pronunciation_only_synthesis_text": "Это проверка голосового сообщения после перекодирования в телеграмный Опус."
+    },
+    {
+      "case_id": "emotion_boundary",
+      "reference_text": "Я не злюсь. Мне скорее грустно, и сейчас не хочется обсуждать решения.",
+      "critical": [
+        "не злюсь",
+        "грустно",
+        "не хочется"
+      ],
+      "voice_id": "piper_ru_RU_dmitri_medium",
+      "condition": "subdued",
+      "condition_recipe": "Deterministic volume=0.62 and lowpass=4800 Hz post-processing.",
+      "clean_master": {
+        "path": "corpus/masters/emotion_boundary.wav",
+        "duration_seconds": 4.063492,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 179278,
+        "sha256": "a27ca784bb03969381e05482dc43591024d2d862535e7e33f7e4586780a08e61"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/emotion_boundary.ogg",
+        "duration_seconds": 4.07,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 16794,
+        "sha256": "2dc74af584f50be56cf94287e326c7c6dc13b8fe1c45e028ab76fd1a5efe41d3"
+      }
+    },
+    {
+      "case_id": "punctuation_contrast",
+      "reference_text": "Подожди! Ты уже отправил письмо? Нет? Тогда пока ничего не делай.",
+      "critical": [
+        "не делай"
+      ],
+      "voice_id": "piper_ru_RU_ruslan_medium",
+      "condition": "expressive",
+      "condition_recipe": "Punctuation-driven synthesis from frozen text; no acoustic filter.",
+      "clean_master": {
+        "path": "corpus/masters/punctuation_contrast.wav",
+        "duration_seconds": 4.109932,
+        "codec": "pcm_s16le",
+        "sample_rate_hz": 22050,
+        "channels": 1,
+        "bytes": 181326,
+        "sha256": "90f7071fb93e8ded2287f2e4117e6122b18e9f007825d9ffc591d27f9d5da53c"
+      },
+      "telegram_derivative": {
+        "path": "corpus/telegram/punctuation_contrast.ogg",
+        "duration_seconds": 4.116437,
+        "codec": "opus",
+        "sample_rate_hz": 48000,
+        "channels": 1,
+        "bytes": 16956,
+        "sha256": "f47db1b4c538b17710829309a486d9f05f698d3f2a1b1869559036d14acb9e9d"
+      }
+    }
+  ]
+}

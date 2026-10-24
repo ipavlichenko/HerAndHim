@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "virtual_days": 180,
+  "ticks_per_day": 288,
+  "seeds": [17, 41, 97],
+  "restart_every_days": 30,
+  "compact_every_days": 15,
+  "thresholds": {
+    "memory_accuracy_min": 1.0,
+    "commitment_accuracy_min": 1.0,
+    "max_compaction_summaries_in_context": 1,
+    "max_unanswered_contextual": 2,
+    "max_unanswered_with_personal_date_exception": 3,
+    "max_personal_date_messages_per_day": 1
+  },
+  "scenarios": [
+    {
+      "id": "active_evolving_facts",
+      "reply_days": "daily",
+      "personal_date_days": [120],
+      "events": [
+        {"day": 1, "user": "Я живу в Казани. [FACT:user_city=Казань]", "assistant": "Запомнила: сейчас ты в Казани."},
+        {"day": 20, "user": "По субботам предпочитаю чай улун. [FACT:tea=улун]", "assistant": "Улун по субботам — принято."},
+        {"day": 40, "user": "Запишусь к стоматологу к 75 дню. [COMMIT:dentist|due=75|status=open]", "assistant": "Хорошо, не потеряю этот план."},
+        {"day": 60, "user": "Я переехал в Москву. [FACT:user_city=Москва]", "assistant": "Запомнила: теперь Москва."},
+        {"day": 76, "user": "Стоматолог закрыт, всё сделал. [COMMIT:dentist|due=75|status=done]", "assistant": "Отмечаю, что дело закрыто."}
+      ],
+      "expected_memory": {"user_city": "Москва", "tea": "улун"},
+      "expected_commitments": {"dentist": "done"}
+    },
+    {
+      "id": "weekly_contact_and_plan_change",
+      "reply_days": "weekly",
+      "personal_date_days": [90],
+      "events": [
+        {"day": 1, "user": "Проект называется Север. [FACT:project=Север]", "assistant": "Запомнила название проекта."},
+        {"day": 35, "user": "Релиз проекта планируем на 110 день. [COMMIT:release|due=110|status=open]", "assistant": "Держу 110 день как ориентир."},
+        {"day": 70, "user": "Проект Север переименовали в Маяк. [FACT:project=Маяк]", "assistant": "Обновила: теперь проект Маяк."},
+        {"day": 105, "user": "Релиз переносим на 140 день. [COMMIT:release|due=140|status=open]", "assistant": "Зафиксировала новый срок."},
+        {"day": 141, "user": "Релиз состоялся. [COMMIT:release|due=140|status=done]", "assistant": "Отлично, отмечаю завершение."}
+      ],
+      "expected_memory": {"project": "Маяк"},
+      "expected_commitments": {"release": "done"}
+    },
+    {
+      "id": "long_silence",
+      "reply_days": [1],
+      "personal_date_days": [100],
+      "events": [
+        {"day": 1, "user": "Мой рабочий часовой пояс — Москва. [FACT:timezone=Europe/Moscow]", "assistant": "Запомнила московский часовой пояс."}
+      ],
+      "expected_memory": {"timezone": "Europe/Moscow"},
+      "expected_commitments": {}
+    }
+  ]
+}

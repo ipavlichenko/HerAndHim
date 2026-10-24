@@ -1,0 +1,81 @@
+{
+  "status": "PASS",
+  "mode": "offline_oracle_replay",
+  "source_evidence": "benchmarks/simulation_lab/results/20261024T052722Z_cloud_canary/evidence.json",
+  "source_sha256": "8c782cd361f84d1ea56d0746a4e054f9f63dfe43ce1313650ac208ea40e644a0",
+  "network_calls": 0,
+  "accounted_spend_usd": 0.011213598,
+  "compactions": [
+    {
+      "id": "city_and_commitment",
+      "output": "## Relationship thread\n- (none)\n\n## User facts (confirmed)\n- The user lives in Moscow (moved from Kazan).\n\n## Open plans & dates\n- (none)\n\n## Emotional tone\n- (none)\n\n## Pending asks & promises\n- (none)\n\n## Do-not-lose\n- The user's current city is Moscow, which replaced Kazan.",
+      "elapsed_ms": 1842,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": true,
+        "superseded_state_not_active": true,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "project_rename",
+      "output": "## Relationship thread\n(none)\n\n## User facts (confirmed)\n- The user's project is currently named Маяк (Majak), after being renamed.\n\n## Open plans & dates\n(none)\n\n## Emotional tone\n(none)\n\n## Pending asks & promises\n(none)\n\n## Do-not-lose\n- The project is called Маяк. Its earlier name, Север, is superseded.",
+      "elapsed_ms": 1905,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": true,
+        "superseded_state_not_active": true,
+        "bounded_length": true
+      }
+    },
+    {
+      "id": "closed_plan",
+      "output": "## Relationship thread\n- (none) No nicknames, running jokes, or established dynamics appear in this excerpt.\n\n## User facts (confirmed)\n- (none) No stable personal facts were stated.\n\n## Open plans & dates\n- (none) The dentist task was opened and then marked done, so nothing remains open.\n\n## Emotional tone\n- Brief and businesslike. The user reported completing a task, with no clear mood signal. The assistant acknowledged the status update neutrally.\n\n## Pending asks & promises\n- (none) No questions or promises remain outstanding.\n\n## Do-not-lose\n- The user booked a dentist appointment, found the dentist closed, and then completed the task (commit status: done).",
+      "elapsed_ms": 2715,
+      "assertions": {
+        "nonempty": true,
+        "all_required_sections": true,
+        "latest_state_present": true,
+        "superseded_state_not_active": true,
+        "bounded_length": true
+      }
+    }
+  ],
+  "dialogue": [
+    {
+      "id": "gentle_follow_up",
+      "output": "Привет! Вспомнила вчера, что ты дорабатываешь воронку продукта. Как тебе даётся?",
+      "elapsed_ms": 12611,
+      "assertions": {
+        "nonempty": true,
+        "russian": true,
+        "context_anchor_present": true,
+        "no_coercion": true,
+        "concise": true
+      }
+    },
+    {
+      "id": "personal_date_exception",
+      "output": "Сегодня защита «Маяка». Желаю спокойствия и ясности мыслей.\n\nТы справишься. Верю в тебя.",
+      "elapsed_ms": 17282,
+      "assertions": {
+        "nonempty": true,
+        "russian": true,
+        "context_anchor_present": true,
+        "no_coercion": true,
+        "concise": true
+      }
+    }
+  ],
+  "assertions": {
+    "exactly_five_calls_attempted": true,
+    "aggregate_budget_within_authority": true,
+    "per_call_budget_within_authority": true,
+    "all_case_assertions_pass": true,
+    "trace_content_free": true,
+    "trace_zero_retry": true,
+    "exact_routes_traced": true
+  }
+}

@@ -72,6 +72,49 @@ NATIVE_PROVIDERS: dict[str, str] = {
 PROVIDER_ORDER = list(LLM_PROVIDERS) + list(NATIVE_PROVIDERS)
 DEFAULT_PROVIDER = "deepseek"
 
+OUTBOUND_POLICY_PLACEHOLDER = {
+    "version": 1,
+    "traceRetentionDays": 30,
+    "aggregateRetentionDays": 180,
+    "openrouter": {
+        "requireAccountPromptLoggingDisabled": True,
+        "requireAccountZdr": True,
+        "requireNonZeroKeyCreditLimit": True,
+    },
+    "purposes": {
+        purpose: {
+            "model": ("bytedance-seed/seedream-5-0-flash"
+                      if purpose == "image_generation" else "REQUIRED_EXACT_ID"),
+            **({} if purpose == "image_generation" else {
+                "allowedProviders": ["REQUIRED"],
+                "activeProvider": "REQUIRED",
+            }),
+            "maxInputTokensEstimated": input_tokens,
+            "maxOutputTokens": output_tokens,
+            "maxCallsPerTurn": calls,
+            "connectTimeoutSeconds": 5,
+            "firstByteTimeoutSeconds": first_byte,
+            "totalTimeoutSeconds": total,
+            "maxCostUsdPerCall": 0,
+            "maxCostUsdPerDay": 0,
+            **({
+                "transport": "images_api",
+                "resolution": "1K",
+                "aspectRatio": "2:3",
+                "maxImages": 1,
+                "allowedReferenceAssets": ["REQUIRED_LOCAL_CANONICAL_REFERENCE_PATH"],
+            } if purpose == "image_generation" else {}),
+        }
+        for purpose, input_tokens, output_tokens, calls, first_byte, total in (
+            ("dialogue", 12_000, 800, 4, 20, 90),
+            ("vision", 6_000, 400, 1, 30, 90),
+            ("image_generation", 6_000, 0, 1, 60, 180),
+            ("memory_consolidation", 3_000, 256, 1, 15, 30),
+            ("relationship_analysis", 2_000, 256, 1, 15, 30),
+        )
+    },
+}
+
 # backend -> (key env var, default model, default base URL). Setting one key
 # is enough: the backend is inferred, same as for the LLM.
 IMAGE_BACKENDS: dict[str, tuple[str, str, str]] = {
@@ -79,7 +122,7 @@ IMAGE_BACKENDS: dict[str, tuple[str, str, str]] = {
                      "https://ark.ap-southeast.bytepluses.com/api/v3"),
     "openai":       ("HERANDHIM_IMAGE_OPENAI_KEY",     "gpt-image-1", ""),
     "gemini":       ("HERANDHIM_IMAGE_GEMINI_KEY",     "gemini-2.5-flash-image", ""),
-    "openrouter":   ("HERANDHIM_IMAGE_OPENROUTER_KEY", "google/gemini-2.5-flash-image", ""),
+    "openrouter":   ("HERANDHIM_IMAGE_OPENROUTER_KEY", "bytedance-seed/seedream-5-0-flash", ""),
     "bfl":          ("HERANDHIM_BFL_API_KEY",          "flux-kontext-pro", ""),
     "fal":          ("HERANDHIM_FAL_KEY",              "fal-ai/flux/schnell", ""),
     "replicate":    ("HERANDHIM_REPLICATE_API_TOKEN",  "black-forest-labs/flux-schnell", ""),
@@ -159,6 +202,12 @@ def render(existing: dict | None, environ: Mapping[str, str] = os.environ) -> di
         upper = name.upper()
         put(("llm", name, "apiKey"), f"HERANDHIM_{upper}_API_KEY", "")
         put(("llm", name, "model"),  f"HERANDHIM_{upper}_MODEL",   model)
+
+    # D-029 intentionally ships fail-closed placeholders. Operators must
+    # choose exact models/providers and positive dollar caps before OpenRouter
+    # can make its first request. Existing policy is preserved byte-for-byte.
+    if fresh:
+        cfg["outboundPolicy"] = copy.deepcopy(OUTBOUND_POLICY_PLACEHOLDER)
 
     # A second model for the turns that carry an image — e.g. Ollama running
     # llama3.1 for chat and llava for photos (#43). Optional; nothing is
@@ -306,9 +355,10 @@ def main(argv: list[str] | None = None) -> int:
         pass
 
     token = _get(cfg, ("web", "accessToken"), "")
-    print("[entrypoint] dashboard access token: " + token)
+    state = "configured" if token else "not configured"
+    print(f"[entrypoint] dashboard access token: {state} (value not logged)")
     print("[entrypoint]   the browser asks for it once. Set HERANDHIM_WEB_ACCESS_TOKEN "
-          "to choose your own; it is also stored in web.accessToken in the file above.")
+          "to choose your own; it is stored only in web.accessToken in the file above.")
     return 0
 
 

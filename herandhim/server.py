@@ -191,12 +191,15 @@ async def start_telegram(
             logger.warning("[HerAndHim] Selfie scheduler setup failed: %s", exc)
 
     # ── 7. Start heartbeat monitor ───────────────────────────────────────────
-    if active_bots:
+    heartbeat_enabled = config.get_bool("heartbeat", "enabled", default=True)
+    if active_bots and heartbeat_enabled:
         try:
             hb = create_heartbeat(provider, telegram_bot=active_bots[0])
             await hb.start()
         except Exception as exc:
             logger.warning("[HerAndHim] Heartbeat monitor failed to start: %s", exc)
+    elif active_bots:
+        logger.info("[HerAndHim] Paid LLM heartbeat disabled; HTTP health remains active.")
     else:
         logger.info("[HerAndHim] No Telegram bot active — heartbeat skipped.")
 

@@ -127,11 +127,11 @@ class _FakeBot:
     async def send_voice(self, chat_id, voice, caption=None):
         if self._fail:
             raise RuntimeError("telegram down")
-        self.voice_calls.append(voice)
+        self.voice_calls.append(voice.read())
 
 
 def _make_bot(fail_send: bool = False) -> tuple[TelegramBot, _FakeBot]:
-    tg = TelegramBot(session_manager=None, token="t0ken")
+    tg = TelegramBot(session_manager=None, token="t0ken", allowed_users=[1])
     fake = _FakeBot(fail_send=fail_send)
     tg._app = types.SimpleNamespace(bot=fake)
     return tg, fake

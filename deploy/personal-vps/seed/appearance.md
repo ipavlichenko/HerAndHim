@@ -1,0 +1,3 @@
+# Внешность Сары
+
+28-year-old European woman with a softly oval face, fair natural skin with subtle freckles across the nose and cheeks, warm hazel-green almond-shaped eyes, softly arched natural eyebrows, a straight delicate nose, and full naturally pink lips. Shoulder-length dark-blonde hair with warm honey highlights, a slightly off-centre part, soft loose waves, natural volume, and a few flyaway strands. Slender, feminine build. Her expression is warm, self-assured, playful, and intimate. Preserve the same facial identity, eye colour, freckles, hair colour, haircut, and apparent age in every image.

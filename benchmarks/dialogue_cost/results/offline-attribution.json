@@ -1,0 +1,403 @@
+{
+  "schemaVersion": 1,
+  "mode": "offline_content_free_no_provider_calls",
+  "baseline_observed_mean_cost_usd": 0.008297,
+  "target_mean_cost_usd": 0.002489,
+  "projected_mean_cost_usd": 0.0024541,
+  "projected_reduction_fraction": 0.704218,
+  "target_cost_met": true,
+  "all_structural_checks_pass": true,
+  "cases": [
+    {
+      "id": "normal",
+      "baseline": {
+        "layers": {
+          "identity_card": {
+            "bytes": 8345,
+            "estimated_tokens": 2087
+          },
+          "typed_context_and_memory": {
+            "bytes": 1231,
+            "estimated_tokens": 308
+          },
+          "recent_dialogue": {
+            "bytes": 2464,
+            "estimated_tokens": 616
+          },
+          "current_message": {
+            "bytes": 57,
+            "estimated_tokens": 15
+          },
+          "tool_schemas": {
+            "bytes": 13776,
+            "estimated_tokens": 3444
+          }
+        },
+        "total_bytes": 25873,
+        "estimated_input_tokens": 6469,
+        "tool_names": [
+          "read_file",
+          "write_file",
+          "send_file",
+          "send_voice",
+          "take_selfie",
+          "candid_shot",
+          "use_skill",
+          "list_skill_resources",
+          "create_skill",
+          "remember",
+          "recall",
+          "memory_get",
+          "memory_list_files",
+          "forget",
+          "clear_chat_history",
+          "update_index",
+          "recall_conversation",
+          "wishlist_add",
+          "wishlist_mark_fulfilled",
+          "wishlist_list",
+          "bucket_add",
+          "bucket_mark_done",
+          "bucket_list",
+          "remember_date",
+          "list_dates",
+          "forget_date"
+        ],
+        "max_output_tokens": 1600
+      },
+      "optimized": {
+        "layers": {
+          "identity_card": {
+            "bytes": 2285,
+            "estimated_tokens": 572
+          },
+          "typed_context_and_memory": {
+            "bytes": 812,
+            "estimated_tokens": 203
+          },
+          "recent_dialogue": {
+            "bytes": 1643,
+            "estimated_tokens": 411
+          },
+          "current_message": {
+            "bytes": 57,
+            "estimated_tokens": 15
+          },
+          "tool_schemas": {
+            "bytes": 2,
+            "estimated_tokens": 1
+          }
+        },
+        "total_bytes": 4799,
+        "estimated_input_tokens": 1200,
+        "tool_names": [],
+        "max_output_tokens": 240
+      },
+      "projected_cost_usd": 0.00216304,
+      "checks": {
+        "identity_is_adult_sara": true,
+        "privacy_has_only_bounded_layers": true,
+        "history_is_four_messages": true,
+        "tool_route_is_minimal": true,
+        "adult_keeps_420_budget": true,
+        "photo_forces_selfie": true,
+        "memory_available": true
+      },
+      "pass": true
+    },
+    {
+      "id": "memory-dependent",
+      "baseline": {
+        "layers": {
+          "identity_card": {
+            "bytes": 8345,
+            "estimated_tokens": 2087
+          },
+          "typed_context_and_memory": {
+            "bytes": 1231,
+            "estimated_tokens": 308
+          },
+          "recent_dialogue": {
+            "bytes": 2464,
+            "estimated_tokens": 616
+          },
+          "current_message": {
+            "bytes": 101,
+            "estimated_tokens": 26
+          },
+          "tool_schemas": {
+            "bytes": 13776,
+            "estimated_tokens": 3444
+          }
+        },
+        "total_bytes": 25917,
+        "estimated_input_tokens": 6480,
+        "tool_names": [
+          "read_file",
+          "write_file",
+          "send_file",
+          "send_voice",
+          "take_selfie",
+          "candid_shot",
+          "use_skill",
+          "list_skill_resources",
+          "create_skill",
+          "remember",
+          "recall",
+          "memory_get",
+          "memory_list_files",
+          "forget",
+          "clear_chat_history",
+          "update_index",
+          "recall_conversation",
+          "wishlist_add",
+          "wishlist_mark_fulfilled",
+          "wishlist_list",
+          "bucket_add",
+          "bucket_mark_done",
+          "bucket_list",
+          "remember_date",
+          "list_dates",
+          "forget_date"
+        ],
+        "max_output_tokens": 1600
+      },
+      "optimized": {
+        "layers": {
+          "identity_card": {
+            "bytes": 2285,
+            "estimated_tokens": 572
+          },
+          "typed_context_and_memory": {
+            "bytes": 812,
+            "estimated_tokens": 203
+          },
+          "recent_dialogue": {
+            "bytes": 1643,
+            "estimated_tokens": 411
+          },
+          "current_message": {
+            "bytes": 101,
+            "estimated_tokens": 26
+          },
+          "tool_schemas": {
+            "bytes": 2,
+            "estimated_tokens": 1
+          }
+        },
+        "total_bytes": 4843,
+        "estimated_input_tokens": 1211,
+        "tool_names": [],
+        "max_output_tokens": 240
+      },
+      "projected_cost_usd": 0.002271456,
+      "checks": {
+        "identity_is_adult_sara": true,
+        "privacy_has_only_bounded_layers": true,
+        "history_is_four_messages": true,
+        "tool_route_is_minimal": true,
+        "adult_keeps_420_budget": true,
+        "photo_forces_selfie": true,
+        "memory_available": true
+      },
+      "pass": true
+    },
+    {
+      "id": "tool-use",
+      "baseline": {
+        "layers": {
+          "identity_card": {
+            "bytes": 8345,
+            "estimated_tokens": 2087
+          },
+          "typed_context_and_memory": {
+            "bytes": 1231,
+            "estimated_tokens": 308
+          },
+          "recent_dialogue": {
+            "bytes": 2464,
+            "estimated_tokens": 616
+          },
+          "current_message": {
+            "bytes": 80,
+            "estimated_tokens": 20
+          },
+          "tool_schemas": {
+            "bytes": 13776,
+            "estimated_tokens": 3444
+          }
+        },
+        "total_bytes": 25896,
+        "estimated_input_tokens": 6474,
+        "tool_names": [
+          "read_file",
+          "write_file",
+          "send_file",
+          "send_voice",
+          "take_selfie",
+          "candid_shot",
+          "use_skill",
+          "list_skill_resources",
+          "create_skill",
+          "remember",
+          "recall",
+          "memory_get",
+          "memory_list_files",
+          "forget",
+          "clear_chat_history",
+          "update_index",
+          "recall_conversation",
+          "wishlist_add",
+          "wishlist_mark_fulfilled",
+          "wishlist_list",
+          "bucket_add",
+          "bucket_mark_done",
+          "bucket_list",
+          "remember_date",
+          "list_dates",
+          "forget_date"
+        ],
+        "max_output_tokens": 1600
+      },
+      "optimized": {
+        "layers": {
+          "identity_card": {
+            "bytes": 2285,
+            "estimated_tokens": 572
+          },
+          "typed_context_and_memory": {
+            "bytes": 812,
+            "estimated_tokens": 203
+          },
+          "recent_dialogue": {
+            "bytes": 1643,
+            "estimated_tokens": 411
+          },
+          "current_message": {
+            "bytes": 80,
+            "estimated_tokens": 20
+          },
+          "tool_schemas": {
+            "bytes": 714,
+            "estimated_tokens": 179
+          }
+        },
+        "total_bytes": 5534,
+        "estimated_input_tokens": 1384,
+        "tool_names": [
+          "take_selfie"
+        ],
+        "max_output_tokens": 240
+      },
+      "projected_cost_usd": 0.002438304,
+      "checks": {
+        "identity_is_adult_sara": true,
+        "privacy_has_only_bounded_layers": true,
+        "history_is_four_messages": true,
+        "tool_route_is_minimal": true,
+        "adult_keeps_420_budget": true,
+        "photo_forces_selfie": true,
+        "memory_available": true
+      },
+      "pass": true
+    },
+    {
+      "id": "explicit-adult",
+      "baseline": {
+        "layers": {
+          "identity_card": {
+            "bytes": 8345,
+            "estimated_tokens": 2087
+          },
+          "typed_context_and_memory": {
+            "bytes": 1231,
+            "estimated_tokens": 308
+          },
+          "recent_dialogue": {
+            "bytes": 2464,
+            "estimated_tokens": 616
+          },
+          "current_message": {
+            "bytes": 178,
+            "estimated_tokens": 45
+          },
+          "tool_schemas": {
+            "bytes": 13776,
+            "estimated_tokens": 3444
+          }
+        },
+        "total_bytes": 25994,
+        "estimated_input_tokens": 6499,
+        "tool_names": [
+          "read_file",
+          "write_file",
+          "send_file",
+          "send_voice",
+          "take_selfie",
+          "candid_shot",
+          "use_skill",
+          "list_skill_resources",
+          "create_skill",
+          "remember",
+          "recall",
+          "memory_get",
+          "memory_list_files",
+          "forget",
+          "clear_chat_history",
+          "update_index",
+          "recall_conversation",
+          "wishlist_add",
+          "wishlist_mark_fulfilled",
+          "wishlist_list",
+          "bucket_add",
+          "bucket_mark_done",
+          "bucket_list",
+          "remember_date",
+          "list_dates",
+          "forget_date"
+        ],
+        "max_output_tokens": 1600
+      },
+      "optimized": {
+        "layers": {
+          "identity_card": {
+            "bytes": 2285,
+            "estimated_tokens": 572
+          },
+          "typed_context_and_memory": {
+            "bytes": 812,
+            "estimated_tokens": 203
+          },
+          "recent_dialogue": {
+            "bytes": 1643,
+            "estimated_tokens": 411
+          },
+          "current_message": {
+            "bytes": 178,
+            "estimated_tokens": 45
+          },
+          "tool_schemas": {
+            "bytes": 2,
+            "estimated_tokens": 1
+          }
+        },
+        "total_bytes": 4920,
+        "estimated_input_tokens": 1230,
+        "tool_names": [],
+        "max_output_tokens": 420
+      },
+      "projected_cost_usd": 0.0029436,
+      "checks": {
+        "identity_is_adult_sara": true,
+        "privacy_has_only_bounded_layers": true,
+        "history_is_four_messages": true,
+        "tool_route_is_minimal": true,
+        "adult_keeps_420_budget": true,
+        "photo_forces_selfie": true,
+        "memory_available": true
+      },
+      "pass": true
+    }
+  ],
+  "live_quality_and_cost_status": "NOT_RUN_REQUIRES_SEPARATE_AUTHORIZATION"
+}

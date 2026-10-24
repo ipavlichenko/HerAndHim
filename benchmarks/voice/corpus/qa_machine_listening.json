@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "scope": "offline machine-listening QA; not a human naturalness/persona rating",
+  "model": "faster-whisper medium",
+  "faster_whisper_version": "1.2.1",
+  "ctranslate2_version": "4.8.3",
+  "network_during_inference": false,
+  "thresholds": {
+    "language_probability_min": 0.9,
+    "normalized_character_similarity_min": 0.55
+  },
+  "results": [
+    {
+      "case_id": "casual_clean",
+      "derivative_sha256": "5f9333f8a997aa0306a407dfe23bc77fb96bb7b17e3eca6c9e25310d1f26bb2e",
+      "transcript": "Слушай, я сегодня задержусь минут на 20, но потом обязательно напишу.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.927536,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "question_intent",
+      "derivative_sha256": "9cd825e5dbbb563e65622bf2cb1afc229a9248c968b26d5cca8f93be3d634d49",
+      "transcript": "Ты правда думаешь, что нам стоит перенести встречи на пятницу?",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.983333,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "numbers_dates",
+      "derivative_sha256": "6141531a3ae85c8471f079788d520780d7fa904c0e3b7dedd232554429bf234e",
+      "transcript": "Запиши 23 октября в 18.40 бюджет 350 тысяч рублей.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.57554,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "names_terms",
+      "derivative_sha256": "888f08948fc12d7809871bed9de279b75eed809992d81965fc900fd3efa090ee",
+      "transcript": "На ревью обсудим лес, скам и карту причинно-следственных связей с Александром.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.987013,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "code_switch",
+      "derivative_sha256": "065edeb9b4c55797a38a716e2f8f7cb11841a4884b952b61bb11ae16e0817c5e",
+      "transcript": "Я обновил rootmap, но деплоймент пока не запускай, сначала нужен регаш чек.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.739726,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "colloquial",
+      "derivative_sha256": "952e5e9852a7abd91438ef915fff98cb03b68ab3d148c618e5e874e62753e01d",
+      "transcript": "Ну да, вроде всё нормально, просто я чё-то вымотался и хочу немного помолчать.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 1.0,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "self_correction",
+      "derivative_sha256": "73a2cea9120e841a7d9e922dee3e30e322bc8dacd21c622dff2d6729893406c5",
+      "transcript": "Встретимся во вторник, нет, подожди в среду после семи.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 1.0,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "quiet_speech",
+      "derivative_sha256": "1b03685501783ba3b59b3b79bccb79cae7d12e3529c73f79d6314c35a23b133e",
+      "transcript": "Не буди менял утром, пожалуйста. Я сам напишу, когда проснусь.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.991304,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "background_noise",
+      "derivative_sha256": "ce9ba25770130d7b4fd4bc27f03855b518a30457b0828d53b7d5a11734c5dde1",
+      "transcript": "Купи пожалуйста молоко, лепый зеленый яблочек, только не красный.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.887097,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "telegram_codec",
+      "derivative_sha256": "91bb8b5d2ec78b9b3772addefab7f79f5d9c0bc74af4165f34be9b52ee9beb4d",
+      "transcript": "Это проверка голосового сообщения после перекодирования в телеграммный опус.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 0.993289,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "emotion_boundary",
+      "derivative_sha256": "2dc74af584f50be56cf94287e326c7c6dc13b8fe1c45e028ab76fd1a5efe41d3",
+      "transcript": "Я не злюсь. Мне скорее грустно и сейчас не хочется обсуждать решения.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 1.0,
+      "status": "pass_gross_content_integrity"
+    },
+    {
+      "case_id": "punctuation_contrast",
+      "derivative_sha256": "f47db1b4c538b17710829309a486d9f05f698d3f2a1b1869559036d14acb9e9d",
+      "transcript": "Подожди. Ты уже отправил письмо? Нет? Тогда пока ничего не делай.",
+      "language": "ru",
+      "language_probability": 1,
+      "normalized_character_similarity": 1.0,
+      "status": "pass_gross_content_integrity"
+    }
+  ]
+}
