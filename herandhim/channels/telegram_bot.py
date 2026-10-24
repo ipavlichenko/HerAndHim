@@ -59,6 +59,10 @@ from telegram.ext import (
 
 from .. import config
 from ..core.humanize import humanize_gap, maybe_react, reply_delay, send_burst
+from ..core.roleplay import (
+    ROLEPLAY_BUTTON_TEXT,
+    ROLEPLAY_START_REQUEST,
+)
 
 if TYPE_CHECKING:
     from ..core.telegram_transport import TelegramTransportStore
@@ -84,7 +88,10 @@ _PHOTO_BUTTON_TEXT = "📸 Хочу твоё фото"
 def _quick_action_keyboard() -> ReplyKeyboardMarkup:
     """Persistent owner keyboard for the highest-value companion action."""
     return ReplyKeyboardMarkup(
-        [[KeyboardButton(_PHOTO_BUTTON_TEXT)]],
+        [
+            [KeyboardButton(ROLEPLAY_BUTTON_TEXT)],
+            [KeyboardButton(_PHOTO_BUTTON_TEXT)],
+        ],
         resize_keyboard=True,
         is_persistent=True,
         input_field_placeholder="Напишите Саре…",
@@ -92,6 +99,8 @@ def _quick_action_keyboard() -> ReplyKeyboardMarkup:
 
 
 def _expand_quick_action(text: str) -> str:
+    if text == ROLEPLAY_BUTTON_TEXT:
+        return ROLEPLAY_START_REQUEST
     if text == _PHOTO_BUTTON_TEXT:
         return (
             "Пришли мне своё фото сейчас. Пусть фотография естественно "
@@ -349,6 +358,8 @@ class TelegramBot:
             "👋 Это личный Telegram-бот Сары.\n\n"
             "Просто напишите Саре сообщение.\n"
             "Можно также отправить фото или голосовое.\n\n"
+            "Кнопка «🎭 Незнакомцы на одну ночь» запускает "
+            "непрерывную ролевую сцену с фотографии у двери.\n\n"
             "Команды:\n"
             "  /start          — показать эту справку\n"
             "  /clear          — очистить историю, сохранив память\n"

@@ -178,5 +178,8 @@ def test_identity_install_removes_conflicts_and_archives_them(tmp_path):
     outbound = data / "context/outbound/dialogue_identity.md"
     assert outbound.is_file()
     assert outbound.stat().st_size < 3_000
-    assert "Сара" in outbound.read_text(encoding="utf-8")
+    outbound_text = outbound.read_text(encoding="utf-8")
+    assert "Сара" in outbound_text
+    assert "ролевой сцене" in outbound_text
+    assert "несказанные" in outbound_text
 

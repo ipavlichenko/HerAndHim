@@ -66,7 +66,7 @@ def build_config(secret_dir: pathlib.Path) -> dict:
             "firstByteTimeoutSeconds": 20,
             "totalTimeoutSeconds": 90,
             "maxCostUsdPerCall": 0.02,
-            "maxCostUsdPerDay": 0.30,
+            "maxCostUsdPerDay": 1.00,
         },
         "vision": {
             "model": "openai/gpt-6.1-sol",

@@ -11,6 +11,7 @@ from herandhim.channels.telegram_bot import (
     _expand_quick_action,
     _model_failure_text,
 )
+from herandhim.core.roleplay import ROLEPLAY_BUTTON_TEXT, ROLEPLAY_START_SENTINEL
 
 
 class _Message:
@@ -131,7 +132,8 @@ def test_start_attaches_persistent_photo_button():
 
     markup = message.reply_kwargs[-1]["reply_markup"]
     assert markup.is_persistent is True
-    assert markup.keyboard[0][0].text == _PHOTO_BUTTON_TEXT
+    assert markup.keyboard[0][0].text == ROLEPLAY_BUTTON_TEXT
+    assert markup.keyboard[1][0].text == _PHOTO_BUTTON_TEXT
 
 
 def test_photo_button_becomes_context_continuation_request():
@@ -140,3 +142,11 @@ def test_photo_button_becomes_context_continuation_request():
     assert "своё фото" in expanded
     assert "текущую сцену" in expanded
     assert _expand_quick_action("обычное сообщение") == "обычное сообщение"
+
+
+def test_roleplay_button_becomes_deterministic_scene_start():
+    expanded = _expand_quick_action(ROLEPLAY_BUTTON_TEXT)
+
+    assert ROLEPLAY_START_SENTINEL in expanded
+    assert "фотографию" in expanded
+    assert "открываешь мне дверь" in expanded

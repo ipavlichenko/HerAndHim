@@ -100,6 +100,9 @@ class SessionManager:
     def reset(self, session_id: str) -> "Agent":
         """Discard the current Agent, erase persisted history, and start fresh."""
         logger.info("[SessionManager] Resetting session '%s'", session_id)
+        from .core.roleplay import RoleplaySceneStore
+
+        RoleplaySceneStore(session_id).end()
         if self._store is not None:
             self._store.delete(session_id)
         self._sessions[session_id] = self._factory(session_id)

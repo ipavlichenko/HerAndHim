@@ -43,6 +43,14 @@ from .llm.base import LLMProvider
 from .memory.emotional_graph import SentimentAnalyzer
 from .memory.manager import MemoryManager
 from .memory.temporal_index import TimelineEvent
+from .roleplay import (
+    ROLEPLAY_SELFIE_CAPTION,
+    ROLEPLAY_SELFIE_HINT,
+    ROLEPLAY_STATE_TOOL,
+    RoleplaySceneStore,
+    is_roleplay_end,
+    is_roleplay_start,
+)
 from .skill_loader import SkillRegistry
 from .tools import (
     AVAILABLE_TOOLS,
@@ -215,6 +223,8 @@ class Agent:
 
         self.provider = provider
         self.session_id = session_id
+        self.roleplay = RoleplaySceneStore(session_id)
+        self._roleplay_started_this_turn = False
         self.messages: list[dict] = []
         self.verbose = verbose
         self.show_full_context = show_full_context
@@ -872,6 +882,15 @@ Don't repeat this if `bot_name` already exists in memory.
         if isinstance(user_input, list):
             return []
 
+        if is_roleplay_start(user_input):
+            return [
+                schema for schema in self._build_tools()
+                if schema.get("function", {}).get("name") == "take_selfie"
+            ]
+        roleplay = getattr(self, "roleplay", None)
+        if roleplay is not None and roleplay.is_active() and not is_roleplay_end(user_input):
+            return [ROLEPLAY_STATE_TOOL]
+
         initial_choice = self._initial_tool_choice(user_input)
         allowed_names = (
             {initial_choice["function"]["name"]}
@@ -931,6 +950,8 @@ Don't repeat this if `bot_name` already exists in memory.
         """
         if not isinstance(user_input, str):
             return "auto"
+        if is_roleplay_start(user_input):
+            return {"type": "function", "function": {"name": "take_selfie"}}
         text = " ".join(user_input.lower().split())
         if re.search(r"\b(?:забудь|удали из памяти|не помни)\b", text):
             return {"type": "function", "function": {"name": "forget"}}
@@ -959,6 +980,11 @@ Don't repeat this if `bot_name` already exists in memory.
             logger.debug("Tool: %s  args=%s", func_name, args)
 
         try:
+            if func_name == "update_roleplay_scene":
+                state = self.roleplay.update(args)
+                return "Durable scene state updated: " + json.dumps(
+                    state, ensure_ascii=False, separators=(",", ":"),
+                )
             if func_name in {"take_selfie", "candid_shot"}:
                 lock = getattr(self, "_media_tool_lock", None)
                 if lock is None:
@@ -971,6 +997,14 @@ Don't repeat this if `bot_name` already exists in memory.
                             "per user turn. Do not retry; reply with a brief apology."
                         )
                     self._media_tool_used_this_turn = True
+                if func_name == "take_selfie" and getattr(
+                    self, "_roleplay_started_this_turn", False,
+                ):
+                    args = {
+                        **args,
+                        "scene_hint": ROLEPLAY_SELFIE_HINT,
+                        "caption": ROLEPLAY_SELFIE_CAPTION,
+                    }
             if func_name == "use_skill":
                 result = self._use_skill(args.get("skill_name"))
             elif func_name == "list_skill_resources":
@@ -1511,6 +1545,11 @@ Don't repeat this if `bot_name` already exists in memory.
                 parts.append(f"relationship_age_days={age}")
         except Exception:
             pass
+
+        roleplay = getattr(self, "roleplay", None)
+        roleplay_context = roleplay.prompt_block() if roleplay is not None else ""
+        if roleplay_context:
+            parts.extend(("", roleplay_context))
 
         # The secured envelope intentionally discards generic system messages.
         # Carry forward exactly the newest bounded compaction summary so the
@@ -2193,6 +2232,9 @@ Don't repeat this if `bot_name` already exists in memory.
         self.loaded_skill_names.clear()
         self.compaction_count = 0
         self._pending_attachments.clear()
+        roleplay = getattr(self, "roleplay", None)
+        if roleplay is not None:
+            roleplay.end()
         self._init_system_prompt()
 
     def _maybe_clear_history_after_turn(self) -> None:
@@ -2335,6 +2377,7 @@ Don't repeat this if `bot_name` already exists in memory.
         """
         user_input = self._normalize_input(user_input)
         self._media_tool_used_this_turn = False
+        self._roleplay_started_this_turn = False
 
         # Daily-message quota gate — refuse BEFORE the LLM call to protect
         # the operator's shared API key from runaway agents. Recorded only
@@ -2344,6 +2387,12 @@ Don't repeat this if `bot_name` already exists in memory.
         if refusal:
             logger.info("[Agent] quota refused chat: %s", refusal)
             return refusal
+
+        if is_roleplay_start(user_input):
+            self.roleplay.start()
+            self._roleplay_started_this_turn = True
+        elif is_roleplay_end(user_input):
+            self.roleplay.end()
 
         self.messages.append({"role": "user", "content": user_input})
         record_message()
@@ -2364,9 +2413,17 @@ Don't repeat this if `bot_name` already exists in memory.
         current_tools = self._build_tools_for_turn(user_input)
         outbound_kw = self._outbound_purpose_kwargs(user_input)
         if outbound_kw.get("purpose") == "dialogue":
-            outbound_kw["max_tokens"] = self._dialogue_output_budget(user_input)
+            outbound_kw["max_tokens"] = (
+                420 if self.roleplay.is_active()
+                else self._dialogue_output_budget(user_input)
+            )
         initial_tool_choice = self._initial_tool_choice(user_input)
+        if self.roleplay.is_active() and not self._roleplay_started_this_turn:
+            initial_tool_choice = {
+                "type": "function", "function": {"name": "update_roleplay_scene"},
+            }
         tool_rounds = 0
+        force_final_after_roleplay_tool = False
         chat_start = time.monotonic()
 
         while True:
@@ -2384,7 +2441,10 @@ Don't repeat this if `bot_name` already exists in memory.
                 response = self.provider.chat(
                     messages=messages_to_send,
                     tools=current_tools,
-                    tool_choice=initial_tool_choice if tool_rounds == 0 else "auto",
+                    tool_choice=(
+                        initial_tool_choice if tool_rounds == 0
+                        else "none" if force_final_after_roleplay_tool else "auto"
+                    ),
                     **outbound_kw,
                 )
                 message = response.choices[0].message
@@ -2394,6 +2454,8 @@ Don't repeat this if `bot_name` already exists in memory.
                     message_dump = message.model_dump()
                     message_dump["content"] = response_text
                     self.messages.append(message_dump)
+                    if self._roleplay_started_this_turn and response_text:
+                        self.roleplay.mark_opened()
                     _log_detail({
                         "event": "response",
                         "tool_rounds": tool_rounds,
@@ -2455,7 +2517,9 @@ Don't repeat this if `bot_name` already exists in memory.
                     "event": "tool_calls",
                     "round": tool_rounds,
                     "calls": [
-                        {"name": tc.function.name, "args": tc.function.arguments}
+                        ({"name": tc.function.name, "args": "[redacted-scene-state]"}
+                         if tc.function.name == "update_roleplay_scene"
+                         else {"name": tc.function.name, "args": tc.function.arguments})
                         for tc in tool_calls
                     ],
                 })
@@ -2493,6 +2557,13 @@ Don't repeat this if `bot_name` already exists in memory.
                         "content": results[tc.id],
                     })
 
+                if any(
+                    tc.function.name in {"update_roleplay_scene", "take_selfie"}
+                    for tc in tool_calls
+                ) and self.roleplay.is_active():
+                    force_final_after_roleplay_tool = True
+                    current_tools = []
+
                 for injection in self.pending_injections:
                     self.messages.append({"role": "system", "content": injection})
                 self.pending_injections = []
@@ -2523,6 +2594,17 @@ Don't repeat this if `bot_name` already exists in memory.
         Returns the full final text, same as ``chat()``.
         """
         user_input = self._normalize_input(user_input)
+        # Role-play has a mandatory state-update/photo tool round followed by
+        # one final prose round. Keep that transaction on the non-streaming
+        # path so partial text cannot escape before durable state is written.
+        if is_roleplay_start(user_input) or self.roleplay.is_active():
+            response = self.chat(user_input)
+            if callable(on_token):
+                try:
+                    on_token(response)
+                except Exception:
+                    pass
+            return response
         self._media_tool_used_this_turn = False
 
         # Optional self-imposed daily cap, same as chat().
