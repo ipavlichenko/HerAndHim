@@ -49,7 +49,13 @@ import tempfile
 import time
 from typing import TYPE_CHECKING
 
-from telegram import BotCommand, KeyboardButton, ReactionTypeEmoji, ReplyKeyboardMarkup, Update
+from telegram import (
+    BotCommand,
+    KeyboardButton,
+    ReactionTypeEmoji,
+    ReplyKeyboardMarkup,
+    Update,
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -61,8 +67,10 @@ from telegram.ext import (
 from .. import config
 from ..core.humanize import humanize_gap, maybe_react, reply_delay, send_burst
 from ..core.roleplay import (
-    ROLEPLAY_BUTTON_TEXT,
-    ROLEPLAY_START_REQUEST,
+    ROLEPLAY_EXIT_BUTTON_TEXT,
+    ROLEPLAY_SCENARIOS,
+    roleplay_scenario_for_label,
+    roleplay_start_request,
 )
 
 if TYPE_CHECKING:
@@ -83,30 +91,33 @@ _COST_CAP_FAILURE_TEXT = (
 )
 _VOICE_MAX_DURATION_SECONDS = 120
 _VOICE_MAX_INPUT_BYTES = 8 * 1024 * 1024
-_PHOTO_BUTTON_TEXT = "📸 Хочу твоё фото"
 
 
-def _quick_action_keyboard() -> ReplyKeyboardMarkup:
-    """Persistent owner keyboard for the highest-value companion action."""
+def _scenario_menu_keyboard() -> ReplyKeyboardMarkup:
+    buttons = [KeyboardButton(row["label"]) for row in ROLEPLAY_SCENARIOS]
+    rows = [buttons[index:index + 2] for index in range(0, len(buttons), 2)]
     return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton(ROLEPLAY_BUTTON_TEXT)],
-            [KeyboardButton(_PHOTO_BUTTON_TEXT)],
-        ],
+        rows,
         resize_keyboard=True,
         is_persistent=True,
-        input_field_placeholder="Напишите Саре…",
+        input_field_placeholder="Выберите сценарий…",
     )
 
 
-def _expand_quick_action(text: str) -> str:
-    if text == ROLEPLAY_BUTTON_TEXT:
-        return ROLEPLAY_START_REQUEST
-    if text == _PHOTO_BUTTON_TEXT:
-        return (
-            "Пришли мне своё фото сейчас. Пусть фотография естественно "
-            "продолжает текущую сцену и то, как ты только что описала свой вид."
-        )
+def _roleplay_exit_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton(ROLEPLAY_EXIT_BUTTON_TEXT)]],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Ваш ход…",
+    )
+
+
+def _expand_roleplay_request(text: str) -> str:
+    """Expand an exact scenario-menu selection into a typed start request."""
+    scene = roleplay_scenario_for_label(text)
+    if scene is not None:
+        return roleplay_start_request(scene["id"])
     return text
 
 
@@ -146,6 +157,7 @@ async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) 
             chat_id=chat_id,
             text=_roleplay_to_html(chunk),
             parse_mode="HTML",
+            reply_markup=_roleplay_exit_keyboard(),
         )
         sent = True
     return sent
@@ -391,10 +403,9 @@ class TelegramBot:
         self._sm.get_or_create(sid)
         await update.message.reply_text(
             "👋 Это личный Telegram-бот Сары.\n\n"
-            "Просто напишите Саре сообщение.\n"
-            "Можно также отправить фото или голосовое.\n\n"
-            "Кнопка «🎭 Незнакомцы на одну ночь» запускает "
-            "непрерывную ролевую сцену с фотографии у двери.\n\n"
+            "Выберите один из 10 ролевых сценариев на клавиатуре ниже. "
+            "Сцена начинается текстом; фотография возможна только как отдельный запрос.\n"
+            "Во время игры кнопка «Выйти в меню сценариев» завершает текущую сцену.\n\n"
             "Команды:\n"
             "  /start          — показать эту справку\n"
             "  /clear          — очистить историю, сохранив память\n"
@@ -402,7 +413,7 @@ class TelegramBot:
             "  /status         — показать состояние сессии\n"
             "  /compact [указание] — сжать историю диалога\n"
             "  /clear_files    — удалить загруженные файлы",
-            reply_markup=_quick_action_keyboard(),
+            reply_markup=_scenario_menu_keyboard(),
         )
 
     async def _cmd_reset(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -484,7 +495,17 @@ class TelegramBot:
 
         user_text = (update.message.text or update.message.caption or "").strip()
         user_text = self._strip_mention(user_text)
-        user_text = _expand_quick_action(user_text)
+        if user_text == ROLEPLAY_EXIT_BUTTON_TEXT:
+            agent = self._sm.get_or_create(sid)
+            roleplay = getattr(agent, "roleplay", None)
+            if roleplay is not None:
+                roleplay.end()
+            await update.message.reply_text(
+                "Сцена завершена. Выберите следующий сценарий.",
+                reply_markup=_scenario_menu_keyboard(),
+            )
+            return
+        user_text = _expand_roleplay_request(user_text)
 
         if user_text:
             from ..core.telegram_transport import parse_silence_boundary

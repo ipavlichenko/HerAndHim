@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-from threading import Lock
 from types import SimpleNamespace
 
 from herandhim.core.agent import Agent
 from herandhim.core.roleplay import (
+    ROLEPLAY_SCENARIOS,
     ROLEPLAY_SCENE_ID,
-    ROLEPLAY_SELFIE_HINT,
     ROLEPLAY_START_REQUEST,
     RoleplaySceneStore,
     is_roleplay_end,
     is_roleplay_start,
+    roleplay_scenario_id,
+    roleplay_start_request,
 )
 
 
@@ -57,6 +58,7 @@ def test_scene_state_is_bounded_atomic_and_survives_recreation(tmp_path):
 
 def test_scene_start_and_explicit_exit_are_distinct_from_in_scene_stop():
     assert is_roleplay_start(ROLEPLAY_START_REQUEST)
+    assert roleplay_scenario_id(ROLEPLAY_START_REQUEST) == ROLEPLAY_SCENE_ID
     assert is_roleplay_end("Выйдем из роли")
     assert is_roleplay_end("Закончим сцену.")
     assert not is_roleplay_end("Стоп")
@@ -72,37 +74,37 @@ def test_active_scene_forces_state_update_tool_and_keeps_full_output_budget(tmp_
     assert agent.roleplay.is_active()
 
 
-def test_roleplay_start_forces_selfie_and_runtime_overrides_model_arguments(
-    tmp_path, monkeypatch,
-):
-    from herandhim.core import agent as agent_module
-
-    captured = []
-    monkeypatch.setitem(
-        agent_module.AVAILABLE_TOOLS,
-        "take_selfie",
-        lambda **kwargs: captured.append(kwargs) or "sent",
-    )
+def test_active_scene_allows_explicit_photo_as_optional_turn(tmp_path):
     agent = _secured_agent(tmp_path)
-    agent.session_id = "telegram:42"
-    agent.verbose = False
-    agent._media_tool_lock = Lock()
-    agent._media_tool_used_this_turn = False
-    agent._roleplay_started_this_turn = True
-    call = SimpleNamespace(function=SimpleNamespace(
-        name="take_selfie",
-        arguments='{"scene_hint":"model drift","caption":"model drift"}',
-    ))
+    agent.roleplay.start()
 
-    assert Agent._initial_tool_choice(ROLEPLAY_START_REQUEST) == {
+    tools = agent._build_tools_for_turn("Пришли мне своё фото в этой сцене")
+
+    assert [row["function"]["name"] for row in tools] == ["take_selfie"]
+    assert Agent._initial_tool_choice("Пришли мне своё фото") == {
         "type": "function", "function": {"name": "take_selfie"},
     }
-    assert agent._execute_tool_call(call) == "sent"
-    assert captured == [{
-        "scene_hint": ROLEPLAY_SELFIE_HINT,
-        "caption": "",
-        "session_id": "telegram:42",
-    }]
+
+
+def test_roleplay_start_is_text_only_and_uses_no_tool(tmp_path):
+    agent = _secured_agent(tmp_path)
+
+    assert agent._build_tools_for_turn(ROLEPLAY_START_REQUEST) == []
+    assert Agent._initial_tool_choice(ROLEPLAY_START_REQUEST) == "none"
+
+
+def test_all_ten_scenarios_have_distinct_durable_initial_state(tmp_path):
+    assert len(ROLEPLAY_SCENARIOS) == 10
+    assert len({row["id"] for row in ROLEPLAY_SCENARIOS}) == 10
+    assert len({row["label"] for row in ROLEPLAY_SCENARIOS}) == 10
+
+    store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    for scene in ROLEPLAY_SCENARIOS:
+        started = store.start(scene["id"])
+        restored = store.load()
+        assert started["scene_id"] == scene["id"]
+        assert restored["title"] == scene["title"]
+        assert scene["title"] in roleplay_start_request(scene["id"])
 
 
 def test_scene_context_preserves_agency_continuity_and_player_control(tmp_path):
@@ -219,26 +221,14 @@ def test_active_turn_updates_state_before_prose_and_redacts_trace(
     assert tool_trace["calls"][0]["args"] == "[redacted-scene-state]"
 
 
-def test_start_transaction_sends_fixed_door_photo_then_opening_prose(
-    tmp_path, monkeypatch,
-):
+def test_start_transaction_is_one_text_call_without_photo(tmp_path, monkeypatch):
     from herandhim.core import agent as agent_module
     from herandhim.core import quota
 
-    sent = []
-    monkeypatch.setitem(
-        agent_module.AVAILABLE_TOOLS,
-        "take_selfie",
-        lambda **kwargs: sent.append(kwargs) or "photo delivered",
-    )
     monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
     monkeypatch.setattr(quota, "check_messages", lambda: None)
     monkeypatch.setattr(quota, "record_message", lambda: None)
     provider = _Provider([
-        _Message(tool_calls=[_tool_call("take_selfie", {
-            "scene_hint": "wrong scene",
-            "caption": "wrong caption",
-        })]),
         _Message(content="*Сара остаётся у открытой двери.* Ты опоздал на семь минут."),
     ])
     agent = Agent(
@@ -255,14 +245,9 @@ def test_start_transaction_sends_fixed_door_photo_then_opening_prose(
     reply = agent.chat(ROLEPLAY_START_REQUEST)
 
     dialogue_calls = [call for call in provider.calls if call.get("purpose") == "dialogue"]
-    assert len(dialogue_calls) == 2
-    assert dialogue_calls[0]["tool_choice"]["function"]["name"] == "take_selfie"
-    assert dialogue_calls[1]["tool_choice"] == "none"
-    assert sent == [{
-        "scene_hint": ROLEPLAY_SELFIE_HINT,
-        "caption": "",
-        "session_id": "telegram:42",
-    }]
+    assert len(dialogue_calls) == 1
+    assert dialogue_calls[0]["tool_choice"] == "none"
+    assert dialogue_calls[0]["tools"] == []
     assert "опоздал на семь" in reply
     assert agent.roleplay.load()["opening_pending"] is False
 
@@ -292,6 +277,7 @@ def test_roleplay_delivery_is_one_atomic_telegram_message(monkeypatch):
         "chat_id": 42,
         "text": "<i>Сара открывает дверь.</i>\n\nСемь минут. &lt;Заходи&gt;.",
         "parse_mode": "HTML",
+        "reply_markup": module._roleplay_exit_keyboard(),
     }]
     assert burst_calls == []
 

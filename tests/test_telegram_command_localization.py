@@ -6,18 +6,28 @@ from types import SimpleNamespace
 from herandhim.channels.telegram_bot import (
     _COST_CAP_FAILURE_TEXT,
     _MODEL_FAILURE_TEXT,
-    _PHOTO_BUTTON_TEXT,
     TelegramBot,
-    _expand_quick_action,
+    _expand_roleplay_request,
     _model_failure_text,
+    _roleplay_exit_keyboard,
+    _scenario_menu_keyboard,
 )
-from herandhim.core.roleplay import ROLEPLAY_BUTTON_TEXT, ROLEPLAY_START_SENTINEL
+from herandhim.core.roleplay import (
+    ROLEPLAY_EXIT_BUTTON_TEXT,
+    ROLEPLAY_SCENARIOS,
+    roleplay_scenario_id,
+)
 
 
 class _Message:
-    def __init__(self) -> None:
+    def __init__(self, text: str = "") -> None:
         self.replies: list[str] = []
         self.reply_kwargs: list[dict] = []
+        self.text = text
+        self.caption = None
+        self.photo = []
+        self.voice = None
+        self.audio = None
 
     async def reply_text(self, text: str, **kwargs) -> None:
         self.replies.append(text)
@@ -30,12 +40,23 @@ class _Memory:
         return ["one"]
 
 
+class _Roleplay:
+    def __init__(self) -> None:
+        self.ended = False
+
+    def end(self) -> None:
+        self.ended = True
+
+
 class _Agent:
     provider = object()
     loaded_skill_names = {"one"}
     memory = _Memory()
     messages = [{"role": "user", "content": "test"}]
     compaction_count = 2
+
+    def __init__(self) -> None:
+        self.roleplay = _Roleplay()
 
     def compact(self, instruction=None) -> str:
         return "English internal summary must not be exposed"
@@ -125,28 +146,59 @@ def test_cost_cap_message_does_not_invite_a_pointless_retry():
     assert _model_failure_text("Error: provider_empty_response") == _MODEL_FAILURE_TEXT
 
 
-def test_start_attaches_persistent_photo_button():
+def test_start_attaches_ten_scenario_buttons_without_photo_button():
     bot, _manager, update, context, message = _fixture()
 
     asyncio.run(bot._cmd_start(update, context))
 
     markup = message.reply_kwargs[-1]["reply_markup"]
     assert markup.is_persistent is True
-    assert markup.keyboard[0][0].text == ROLEPLAY_BUTTON_TEXT
-    assert markup.keyboard[1][0].text == _PHOTO_BUTTON_TEXT
+    labels = [button.text for row in markup.keyboard for button in row]
+    assert labels == [row["label"] for row in ROLEPLAY_SCENARIOS]
+    assert len(labels) == 10
+    assert "📸 Хочу твоё фото" not in labels
 
 
-def test_photo_button_becomes_context_continuation_request():
-    expanded = _expand_quick_action(_PHOTO_BUTTON_TEXT)
+def test_scenario_buttons_become_typed_text_only_starts():
+    for scene in ROLEPLAY_SCENARIOS:
+        expanded = _expand_roleplay_request(scene["label"])
+        assert roleplay_scenario_id(expanded) == scene["id"]
+        assert "без обязательной фотографии" in expanded
 
-    assert "своё фото" in expanded
-    assert "текущую сцену" in expanded
-    assert _expand_quick_action("обычное сообщение") == "обычное сообщение"
+    assert _expand_roleplay_request("обычное сообщение") == "обычное сообщение"
 
 
-def test_roleplay_button_becomes_deterministic_scene_start():
-    expanded = _expand_quick_action(ROLEPLAY_BUTTON_TEXT)
+def test_scene_and_exit_keyboards_are_separate():
+    menu_labels = [
+        button.text for row in _scenario_menu_keyboard().keyboard for button in row
+    ]
+    exit_labels = [
+        button.text for row in _roleplay_exit_keyboard().keyboard for button in row
+    ]
 
-    assert ROLEPLAY_START_SENTINEL in expanded
-    assert "фотографию" in expanded
-    assert "открываешь мне дверь" in expanded
+    assert ROLEPLAY_EXIT_BUTTON_TEXT not in menu_labels
+    assert exit_labels == [ROLEPLAY_EXIT_BUTTON_TEXT]
+
+
+def test_exit_button_ends_scene_and_returns_to_scenario_menu():
+    bot, manager, update, context, _message = _fixture()
+    message = _Message(ROLEPLAY_EXIT_BUTTON_TEXT)
+    update.message = message
+    update.update_id = 77
+    update.effective_chat.type = "private"
+    bot._require_mention = False
+    bot._bot_username = None
+    bot._transport = SimpleNamespace(accept_update=lambda *_args: True)
+
+    async def _save(_chat_id):
+        return None
+
+    bot._maybe_save_chat_id = _save
+    context.bot = object()
+
+    asyncio.run(bot._handle_message(update, context))
+
+    assert manager.agent.roleplay.ended is True
+    assert message.replies == ["Сцена завершена. Выберите следующий сценарий."]
+    markup = message.reply_kwargs[-1]["reply_markup"]
+    assert sum(len(row) for row in markup.keyboard) == 10

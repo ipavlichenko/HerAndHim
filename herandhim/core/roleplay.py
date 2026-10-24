@@ -12,30 +12,102 @@ from threading import RLock
 
 from .. import config
 
-ROLEPLAY_BUTTON_TEXT = "🎭 Незнакомцы на одну ночь"
-ROLEPLAY_START_SENTINEL = "[[ROLEPLAY_START:strangers_one_night]]"
-ROLEPLAY_SCENE_ID = "strangers_one_night"
-
-ROLEPLAY_SELFIE_HINT = (
-    "Sarah has just opened the front door of her Moscow apartment at night. "
-    "She stands just inside the doorway in an elegant short black dress, fully "
-    "clothed, one hand on the door handle, looking directly at the arriving guest "
-    "with calm confidence and restrained invitation. Warm cinematic hallway light, "
-    "realistic vertical full-body smartphone photo, safe-for-work, no nudity."
+ROLEPLAY_SCENARIOS = (
+    {
+        "id": "strangers_one_night", "label": "🎭 Незнакомцы на одну ночь",
+        "title": "Незнакомцы на одну ночь", "phase": "arrival",
+        "location": "прихожая квартиры Сары у м. Аэропорт, вечер",
+        "sarah_position": "стоит внутри у открытой двери", "ilya_position": "стоит снаружи за порогом",
+        "sarah_clothing": "короткое чёрное платье; полностью одета", "props": ["открытая дверь", "телефон Ильи"],
+        "facts": ["Илья опоздал на семь минут", "они играют незнакомцев", "Сара заметила его в баре"],
+        "last_beat": "Сара открыла дверь и встретила Илью на пороге",
+        "opening": "Sarah notes that Ilya is seven minutes late, asks him to put his phone on the console without assuming that he does so, says she watched him over a wine glass in a bar, establishes the three rules in character, and asks what he wanted to do in the bar.",
+    },
+    {
+        "id": "night_train", "label": "🚂 Ночное купе", "title": "Ночное купе", "phase": "departure",
+        "location": "купе ночного поезда Москва—Санкт-Петербург", "sarah_position": "сидит у окна", "ilya_position": "стоит в дверях купе",
+        "sarah_clothing": "светлая рубашка и тёмная юбка", "props": ["два билета", "чай в подстаканнике"],
+        "facts": ["они впервые видят друг друга", "до прибытия восемь часов"], "last_beat": "Сара поняла, что Илья — её попутчик",
+        "opening": "Sarah indicates the opposite seat, notices the compartment lock without touching it, and asks whether Ilya prefers conversation or silence until the first stop.",
+    },
+    {
+        "id": "after_hours_bar", "label": "🍸 После закрытия бара", "title": "После закрытия бара", "phase": "last_guest",
+        "location": "закрытый коктейльный бар", "sarah_position": "стоит за стойкой", "ilya_position": "сидит на последнем барном стуле",
+        "sarah_clothing": "чёрная рубашка с закатанными рукавами", "props": ["ключ от двери", "недопитый коктейль"],
+        "facts": ["бар уже закрыт", "Сара решает, когда попросить последнего гостя уйти"], "last_beat": "Сара перевернула табличку на «закрыто»",
+        "opening": "Sarah turns the sign to closed, leaves Ilya's unfinished drink where it is, and asks why he has not left with everyone else.",
+    },
+    {
+        "id": "blackout_neighbors", "label": "🕯 Соседи без света", "title": "Соседи без света", "phase": "blackout",
+        "location": "лестничная площадка во время отключения света", "sarah_position": "стоит у своей двери со свечой", "ilya_position": "на площадке напротив",
+        "sarah_clothing": "домашнее платье и кардиган", "props": ["свеча", "фонарик"],
+        "facts": ["они давно замечают друг друга, но не знакомы"], "last_beat": "Сара вышла проверить щиток",
+        "opening": "Sarah raises the candle between them and asks whether Ilya knows anything about electricity or only looks convincing in the dark.",
+    },
+    {
+        "id": "hotel_mistake", "label": "🏨 Ошибка в отеле", "title": "Ошибка в отеле", "phase": "wrong_room",
+        "location": "коридор бутик-отеля", "sarah_position": "стоит у двери номера", "ilya_position": "стоит у той же двери с другим ключом",
+        "sarah_clothing": "тёмно-зелёное платье и лёгкое пальто", "props": ["две ключ-карты", "дверь номера"],
+        "facts": ["отель по ошибке выдал им ключи от одного номера"], "last_beat": "обе ключ-карты открыли одну дверь",
+        "opening": "Sarah compares the two room keys, keeps her own card in hand, and asks whether Ilya wants to call reception or hear her less sensible proposal first.",
+    },
+    {
+        "id": "masked_ball", "label": "🎭 Маскарад без имён", "title": "Маскарад без имён", "phase": "first_dance",
+        "location": "бальный зал на маскараде", "sarah_position": "стоит у края танцпола", "ilya_position": "в нескольких шагах от неё",
+        "sarah_clothing": "длинное бордовое платье и чёрная маска", "props": ["маски", "бокалы шампанского"],
+        "facts": ["до полуночи они не называют имён"], "last_beat": "Сара выбрала Илью среди гостей",
+        "opening": "Sarah offers an open hand without touching Ilya and says he may accept one dance, one question, or neither.",
+    },
+    {
+        "id": "tango_lesson", "label": "💃 Последний урок танго", "title": "Последний урок танго", "phase": "private_lesson",
+        "location": "пустая танцевальная студия после закрытия", "sarah_position": "стоит у зеркала", "ilya_position": "на краю паркета",
+        "sarah_clothing": "чёрное танцевальное платье и туфли", "props": ["колонка", "зеркальная стена"],
+        "facts": ["это последний урок вечера", "любое прикосновение в танце требует явного принятия"], "last_beat": "Сара выключила верхний свет",
+        "opening": "Sarah starts the music, holds out her hand without closing the distance, and asks Ilya whether he is ready to let her lead the first step.",
+    },
+    {
+        "id": "photographer_muse", "label": "📷 Фотограф и муза", "title": "Фотограф и муза", "phase": "first_frame",
+        "location": "фотостудия после окончания съёмки", "sarah_position": "стоит перед фоном", "ilya_position": "рядом с камерой",
+        "sarah_clothing": "белая рубашка и широкие тёмные брюки", "props": ["камера", "софтбокс", "белый фон"],
+        "facts": ["официальная съёмка закончена", "Сара сама определяет границы кадра"], "last_beat": "Сара осталась на фоне после команды закончить",
+        "opening": "Sarah asks Ilya to lower the camera, says the next frame exists only if they invent it together, and asks what he wants the photograph to reveal.",
+    },
+    {
+        "id": "exes_five_years", "label": "🥂 Бывшие через пять лет", "title": "Бывшие через пять лет", "phase": "reunion",
+        "location": "тихий ресторан после встречи выпускников", "sarah_position": "сидит за столиком", "ilya_position": "стоит у свободного стула",
+        "sarah_clothing": "синее платье и серьги", "props": ["два бокала", "старая фотография выпуска"],
+        "facts": ["в сцене они расстались пять лет назад", "оба вольны отказаться от разговора"], "last_beat": "Сара заметила Илью среди гостей",
+        "opening": "Sarah points to the empty chair but does not invite Ilya verbally, then asks which version of their last evening he remembers.",
+    },
+    {
+        "id": "country_house_storm", "label": "⛈ Гроза в загородном доме", "title": "Гроза в загородном доме", "phase": "storm",
+        "location": "гостиная загородного дома во время грозы", "sarah_position": "стоит у окна", "ilya_position": "в гостиной у входа",
+        "sarah_clothing": "светлый свитер и тёмная юбка", "props": ["камин", "плед", "разряженный телефон"],
+        "facts": ["дорогу размыло до утра", "в доме есть две спальни"], "last_beat": "гроза отрезала дорогу к городу",
+        "opening": "Sarah closes the curtain after a flash of lightning and asks whether Ilya wants the room with the fireplace or the one with the lock.",
+    },
 )
-# The opening prose follows immediately after the delivered photo. Keeping the
-# image caption empty avoids repeating the same arrival beat twice.
-ROLEPLAY_SELFIE_CAPTION = ""
 
-ROLEPLAY_START_REQUEST = (
-    f"{ROLEPLAY_START_SENTINEL}\n"
-    "Начни сцену «Незнакомцы на одну ночь». Сначала пришли стартовую "
-    "фотографию: ты открываешь мне дверь квартиры вечером. Затем продолжи "
-    "сцену: действия Сары описывай от третьего лица, а её прямую речь — от её лица. "
-    "Я опоздал на семь минут, а сегодня ты не моя девушка, "
-    "а женщина, которая наблюдала за мной из-за бокала в баре. Не описывай мои несказанные "
-    "действия и оставь мне конкретный ход."
-)
+ROLEPLAY_EXIT_BUTTON_TEXT = "↙️ Выйти в меню сценариев"
+_SCENARIOS_BY_ID = {row["id"]: row for row in ROLEPLAY_SCENARIOS}
+_SCENARIOS_BY_LABEL = {row["label"]: row for row in ROLEPLAY_SCENARIOS}
+ROLEPLAY_SCENE_ID = ROLEPLAY_SCENARIOS[0]["id"]
+ROLEPLAY_BUTTON_TEXT = ROLEPLAY_SCENARIOS[0]["label"]
+ROLEPLAY_START_SENTINEL = f"[[ROLEPLAY_START:{ROLEPLAY_SCENE_ID}]]"
+
+
+def roleplay_start_request(scene_id: str) -> str:
+    scene = _SCENARIOS_BY_ID[scene_id]
+    return (
+        f"[[ROLEPLAY_START:{scene_id}]]\n"
+        f"Начни текстовую сцену «{scene['title']}» без обязательной фотографии. "
+        "Действия Сары описывай от третьего лица, а её прямую речь — от её лица. "
+        "Не описывай мои несказанные действия, согласие или чувства; оставь мне конкретный ход."
+    )
+
+
+ROLEPLAY_START_REQUEST = roleplay_start_request(ROLEPLAY_SCENE_ID)
+_START_RE = re.compile(r"\[\[ROLEPLAY_START:([a-z0-9_]+)\]\]")
 
 ROLEPLAY_STATE_TOOL = {
     "type": "function",
@@ -80,7 +152,20 @@ _END_RE = re.compile(
 
 
 def is_roleplay_start(value: str | list) -> bool:
-    return isinstance(value, str) and ROLEPLAY_START_SENTINEL in value
+    return roleplay_scenario_id(value) is not None
+
+
+def roleplay_scenario_id(value: str | list) -> str | None:
+    if not isinstance(value, str):
+        return None
+    match = _START_RE.search(value)
+    if not match or match.group(1) not in _SCENARIOS_BY_ID:
+        return None
+    return match.group(1)
+
+
+def roleplay_scenario_for_label(value: str) -> dict | None:
+    return _SCENARIOS_BY_LABEL.get(value)
 
 
 def is_roleplay_end(value: str | list) -> bool:
@@ -116,32 +201,29 @@ class RoleplaySceneStore:
         self._lock = RLock()
 
     @staticmethod
-    def initial_state() -> dict:
+    def initial_state(scene_id: str = ROLEPLAY_SCENE_ID) -> dict:
+        scene = _SCENARIOS_BY_ID.get(scene_id, _SCENARIOS_BY_ID[ROLEPLAY_SCENE_ID])
         stamp = _now()
         return {
-            "version": 1,
-            "scene_id": ROLEPLAY_SCENE_ID,
-            "title": "Незнакомцы на одну ночь",
+            "version": 2,
+            "scene_id": scene["id"],
+            "title": scene["title"],
             "active": True,
             "status": "active",
-            "phase": "arrival",
-            "location": "прихожая квартиры Сары у м. Аэропорт, вечер",
-            "sarah_position": "стоит внутри у открытой двери, рука на ручке",
-            "ilya_position": "стоит снаружи за порогом",
-            "sarah_clothing": "элегантное короткое чёрное платье; полностью одета",
+            "phase": scene["phase"],
+            "location": scene["location"],
+            "sarah_position": scene["sarah_position"],
+            "ilya_position": scene["ilya_position"],
+            "sarah_clothing": scene["sarah_clothing"],
             "ilya_clothing": "не установлена",
-            "props": ["открытая входная дверь", "телефон Ильи"],
+            "props": list(scene["props"]),
             "rules": [
                 "не спешить",
                 "стоп или колебание немедленно останавливают интимное действие",
                 "Сара сама решает, как менять темп и куда вести сцену",
             ],
-            "established_facts": [
-                "Илья опоздал на семь минут",
-                "в этой сцене они играют незнакомцев, а не пару",
-                "Сара заметила его в баре из-за бокала вина",
-            ],
-            "last_beat": "Сара открыла дверь и встретила Илью на пороге",
+            "established_facts": list(scene["facts"]),
+            "last_beat": scene["last_beat"],
             "consent_state": "mutual",
             "opening_pending": True,
             "turn_index": 0,
@@ -158,7 +240,7 @@ class RoleplaySceneStore:
                 state = json.loads(raw)
             except (OSError, json.JSONDecodeError, TypeError):
                 return None
-            if not isinstance(state, dict) or state.get("scene_id") != ROLEPLAY_SCENE_ID:
+            if not isinstance(state, dict) or state.get("scene_id") not in _SCENARIOS_BY_ID:
                 return None
             return state
 
@@ -166,14 +248,15 @@ class RoleplaySceneStore:
         state = self.load()
         return bool(state and state.get("active") and state.get("status") == "active")
 
-    def start(self) -> dict:
-        state = self.initial_state()
+    def start(self, scene_id: str = ROLEPLAY_SCENE_ID) -> dict:
+        state = self.initial_state(scene_id)
         self._write(state)
         return state
 
     def update(self, patch: dict) -> dict:
         with self._lock:
-            state = self.load() or self.initial_state()
+            current = self.load()
+            state = current or self.initial_state()
             for key in (
                 "phase", "location", "sarah_position", "ilya_position",
                 "sarah_clothing", "ilya_clothing", "last_beat",
@@ -223,14 +306,10 @@ class RoleplaySceneStore:
         state_json = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
         opening = ""
         if state.get("opening_pending"):
+            scene = _SCENARIOS_BY_ID[state["scene_id"]]
             opening = (
-                " This is the opening turn, immediately after the door photo. Sarah notes "
-                "that Ilya is seven minutes late, takes his phone without presuming any "
-                "further action by him, and says that tonight she is not his girlfriend but "
-                "the woman who watched him over a wine glass in a bar. She establishes three "
-                "rules in character: do not rush; stop means stop; she decides how the scene's "
-                "pace and direction develop. She finishes by asking what he had wanted to do "
-                "in the bar. Render this as lived action and dialogue, never as a rule list."
+                " This is the text-only opening turn. " + scene["opening"]
+                + " Render this as lived action and dialogue, never as a rule list."
             )
         return (
             "## ACTIVE ROLE-PLAY SCENE (durable local state)\n"

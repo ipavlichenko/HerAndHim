@@ -44,12 +44,11 @@ from .memory.emotional_graph import SentimentAnalyzer
 from .memory.manager import MemoryManager
 from .memory.temporal_index import TimelineEvent
 from .roleplay import (
-    ROLEPLAY_SELFIE_CAPTION,
-    ROLEPLAY_SELFIE_HINT,
     ROLEPLAY_STATE_TOOL,
     RoleplaySceneStore,
     is_roleplay_end,
     is_roleplay_start,
+    roleplay_scenario_id,
 )
 from .skill_loader import SkillRegistry
 from .tools import (
@@ -883,12 +882,18 @@ Don't repeat this if `bot_name` already exists in memory.
             return []
 
         if is_roleplay_start(user_input):
-            return [
-                schema for schema in self._build_tools()
-                if schema.get("function", {}).get("name") == "take_selfie"
-            ]
+            return []
         roleplay = getattr(self, "roleplay", None)
         if roleplay is not None and roleplay.is_active() and not is_roleplay_end(user_input):
+            choice = self._initial_tool_choice(user_input)
+            if (
+                isinstance(choice, dict)
+                and choice.get("function", {}).get("name") == "take_selfie"
+            ):
+                return [
+                    schema for schema in self._build_tools()
+                    if schema.get("function", {}).get("name") == "take_selfie"
+                ]
             return [ROLEPLAY_STATE_TOOL]
 
         initial_choice = self._initial_tool_choice(user_input)
@@ -951,7 +956,7 @@ Don't repeat this if `bot_name` already exists in memory.
         if not isinstance(user_input, str):
             return "auto"
         if is_roleplay_start(user_input):
-            return {"type": "function", "function": {"name": "take_selfie"}}
+            return "none"
         text = " ".join(user_input.lower().split())
         if re.search(r"\b(?:забудь|удали из памяти|не помни)\b", text):
             return {"type": "function", "function": {"name": "forget"}}
@@ -997,14 +1002,6 @@ Don't repeat this if `bot_name` already exists in memory.
                             "per user turn. Do not retry; reply with a brief apology."
                         )
                     self._media_tool_used_this_turn = True
-                if func_name == "take_selfie" and getattr(
-                    self, "_roleplay_started_this_turn", False,
-                ):
-                    args = {
-                        **args,
-                        "scene_hint": ROLEPLAY_SELFIE_HINT,
-                        "caption": ROLEPLAY_SELFIE_CAPTION,
-                    }
             if func_name == "use_skill":
                 result = self._use_skill(args.get("skill_name"))
             elif func_name == "list_skill_resources":
@@ -2389,7 +2386,7 @@ Don't repeat this if `bot_name` already exists in memory.
             return refusal
 
         if is_roleplay_start(user_input):
-            self.roleplay.start()
+            self.roleplay.start(roleplay_scenario_id(user_input) or "strangers_one_night")
             self._roleplay_started_this_turn = True
         elif is_roleplay_end(user_input):
             self.roleplay.end()
@@ -2418,7 +2415,15 @@ Don't repeat this if `bot_name` already exists in memory.
                 else self._dialogue_output_budget(user_input)
             )
         initial_tool_choice = self._initial_tool_choice(user_input)
-        if self.roleplay.is_active() and not self._roleplay_started_this_turn:
+        active_photo_request = (
+            isinstance(initial_tool_choice, dict)
+            and initial_tool_choice.get("function", {}).get("name") == "take_selfie"
+        )
+        if (
+            self.roleplay.is_active()
+            and not self._roleplay_started_this_turn
+            and not active_photo_request
+        ):
             initial_tool_choice = {
                 "type": "function", "function": {"name": "update_roleplay_scene"},
             }
@@ -2594,8 +2599,8 @@ Don't repeat this if `bot_name` already exists in memory.
         Returns the full final text, same as ``chat()``.
         """
         user_input = self._normalize_input(user_input)
-        # Role-play has a mandatory state-update/photo tool round followed by
-        # one final prose round. Keep that transaction on the non-streaming
+        # Role-play has a mandatory state-update tool round followed by one
+        # final prose round. Keep that transaction on the non-streaming
         # path so partial text cannot escape before durable state is written.
         if is_roleplay_start(user_input) or self.roleplay.is_active():
             response = self.chat(user_input)
