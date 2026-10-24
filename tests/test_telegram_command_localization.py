@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from herandhim.channels.telegram_bot import (
     _COST_CAP_FAILURE_TEXT,
     _MODEL_FAILURE_TEXT,
+    _RATE_LIMIT_FAILURE_TEXT,
     TelegramBot,
     _expand_roleplay_request,
     _model_failure_text,
@@ -144,6 +145,14 @@ def test_cost_cap_message_does_not_invite_a_pointless_retry():
     assert "Повторная отправка сейчас не поможет" in text
     assert "сброса дневного лимита" in text
     assert _model_failure_text("Error: provider_empty_response") == _MODEL_FAILURE_TEXT
+
+
+def test_rate_limit_message_explains_when_retry_is_useful():
+    text = _model_failure_text("Error: provider_rate_limited")
+
+    assert text == _RATE_LIMIT_FAILURE_TEXT
+    assert "через минуту" in text
+    assert "provider_rate_limited" not in text
 
 
 def test_start_attaches_ten_scenario_buttons_without_photo_button():

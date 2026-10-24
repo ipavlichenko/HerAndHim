@@ -167,9 +167,18 @@ class OpenAICompatibleProvider(LLMProvider):
             except PolicyError as exc:
                 self._trace_reject(purpose, str(exc))
                 raise
-            except Exception:
-                self._trace_transport_failure(purpose)
-                raise PolicyError("provider_request_failed") from None
+            except Exception as exc:
+                status = getattr(exc, "status_code", None)
+                error_code = (
+                    "provider_rate_limited" if status == 429
+                    else "provider_request_failed"
+                )
+                self._trace_transport_failure(
+                    purpose,
+                    error_code=error_code,
+                    http_status=status if isinstance(status, int) else None,
+                )
+                raise PolicyError(error_code) from None
             _promote_reasoning_to_content(resp)
             actual_cost = self._reported_cost(resp)
             if actual_cost is not None and reservation_id is not None:
@@ -334,14 +343,23 @@ class OpenAICompatibleProvider(LLMProvider):
             return float(value)
         return None
 
-    def _trace_transport_failure(self, purpose: object) -> None:
-        self._trace.write({
+    def _trace_transport_failure(
+        self,
+        purpose: object,
+        *,
+        error_code: str = "provider_request_failed",
+        http_status: int | None = None,
+    ) -> None:
+        event = {
             "purpose": str(getattr(purpose, "value", purpose) or "missing"),
             "policy_version": self.outbound_policy.version if self.outbound_policy else 0,
             "budget_decision": "allowed",
-            "error_code": "provider_request_failed",
+            "error_code": error_code,
             "retry_count": 0,
-        })
+        }
+        if http_status is not None:
+            event["http_status"] = http_status
+        self._trace.write(event)
 
     def _trace_success(self, purpose: object, response: Any, started: float) -> None:
         usage = getattr(response, "usage", None)

@@ -193,6 +193,29 @@ def test_roleplay_validator_accepts_complete_opening_and_turn():
     assert "220-900" in instruction
 
 
+def test_active_turn_may_end_on_a_complete_action_beat():
+    turn = (
+        "*Сара отступает от стола и оставляет из двух стульев тот, что ближе к камину.*\n\n"
+        "— Тогда комнату. Но не делай вид, что мы выбрали только кровать.\n\n"
+        "*Она берёт лампу и ждёт у лестницы, не решая за Илью, пойдёт ли он следом.*"
+    )
+
+    assert validate_roleplay_turn(turn, opening=False).valid
+    opening_result = validate_roleplay_turn(turn, opening=True)
+    assert opening_result.valid is False
+    assert "turn_ends_on_action" in opening_result.issues
+
+
+def test_action_ending_must_still_have_complete_inner_punctuation():
+    turn = (
+        "*Сара оставляет дверь открытой, не решая за Илью.*\n\n"
+        "— Ты можешь остаться или уйти.\n\n"
+        "*Она поднимает лампу и отступает к лестнице*"
+    )
+
+    assert validate_roleplay_turn(turn, opening=False).issues == ("incomplete_ending",)
+
+
 class _Message:
     def __init__(self, *, content="", tool_calls=None):
         self.content = content

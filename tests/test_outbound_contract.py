@@ -537,6 +537,38 @@ def test_provider_failure_is_sanitized_and_never_retried():
     assert provider.client.chat.completions.create.call_count == 1
 
 
+def test_provider_429_is_typed_in_trace_and_never_retried(tmp_path):
+    class _RateLimitError(Exception):
+        status_code = 429
+
+    trace_path = tmp_path / "trace.jsonl"
+    provider = OpenAICompatibleProvider(
+        api_key="sk-or-test-secret-value",
+        base_url="https://openrouter.ai/api/v1",
+        model_name="vendor/dialogue",
+        outbound_policy=OutboundPolicy.from_mapping(policy_mapping()),
+        outbound_trace=OutboundTrace(trace_path),
+        cost_ledger=CostLedger(tmp_path / "costs.sqlite3"),
+    )
+    provider.client = MagicMock()
+    provider.client.chat.completions.create.side_effect = _RateLimitError(
+        "private prompt and sk-or-secret",
+    )
+
+    with pytest.raises(PolicyError, match="provider_rate_limited") as caught:
+        provider.chat(
+            messages=[{"role": "user", "content": "private prompt"}],
+            purpose="dialogue",
+        )
+
+    assert "private prompt" not in str(caught.value)
+    assert provider.client.chat.completions.create.call_count == 1
+    event = json.loads(trace_path.read_text(encoding="utf-8").splitlines()[-1])
+    assert event["error_code"] == "provider_rate_limited"
+    assert event["http_status"] == 429
+    assert event["retry_count"] == 0
+
+
 def test_empty_paid_response_fails_closed_without_retry():
     provider = make_provider()
     response = MagicMock(choices=[MagicMock(

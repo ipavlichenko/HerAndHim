@@ -85,6 +85,10 @@ _PHOTO_FAILURE_TEXT = (
 _VOICE_FAILURE_TEXT = "I couldn't safely process that voice note. Please try a shorter recording."
 _VOICE_EMPTY_TEXT = "I couldn't recognise speech in that voice note."
 _MODEL_FAILURE_TEXT = "Не получилось ответить. Попробуйте отправить сообщение позже."
+_RATE_LIMIT_FAILURE_TEXT = (
+    "Провайдер временно ограничил запросы. "
+    "Повторите ход через минуту."
+)
 _COST_CAP_FAILURE_TEXT = (
     "На сегодня исчерпан лимит расходов на диалог. Повторная отправка сейчас "
     "не поможет; Сара снова сможет отвечать после сброса дневного лимита."
@@ -125,6 +129,8 @@ def _model_failure_text(raw_response: str) -> str:
     """Map internal policy failures to truthful, content-free Russian UX."""
     if raw_response.startswith("Error: ") and "daily_cost_cap_exceeded" in raw_response:
         return _COST_CAP_FAILURE_TEXT
+    if raw_response.startswith("Error: ") and "provider_rate_limited" in raw_response:
+        return _RATE_LIMIT_FAILURE_TEXT
     return _MODEL_FAILURE_TEXT
 
 

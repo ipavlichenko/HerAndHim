@@ -157,7 +157,8 @@ def validate_roleplay_turn(
         issues.append("too_short")
     if len(value) > 3_500:
         issues.append("too_long")
-    if value and value[-1] not in ".?!…»”\"":
+    semantic_end = value[:-1].rstrip() if value.endswith("*") else value
+    if semantic_end and semantic_end[-1] not in ".?!…»”\"":
         issues.append("incomplete_ending")
     if value.count("*") % 2:
         issues.append("unpaired_action_marker")
@@ -182,7 +183,7 @@ def validate_roleplay_turn(
         issues.append("actions_do_not_identify_sarah")
     if not speech_paragraphs:
         issues.append("missing_direct_speech")
-    if paragraphs and "*" in paragraphs[-1]:
+    if opening and paragraphs and "*" in paragraphs[-1]:
         issues.append("turn_ends_on_action")
     if opening and speech_paragraphs and "?" not in speech_paragraphs[-1]:
         issues.append("missing_playable_question")
@@ -195,7 +196,8 @@ def roleplay_repair_instruction(issues: tuple[str, ...], *, opening: bool) -> st
         "Use at least two action paragraphs and end the final plain-text speech "
         "paragraph with one concrete in-character question that gives Ilya a meaningful move."
         if opening else
-        "Use at least one action paragraph and end on complete plain-text speech that gives Ilya a move."
+        "Use at least one action paragraph and complete plain-text speech that gives Ilya a move. "
+        "The final paragraph may be either complete speech or a separate complete action paragraph."
     )
     return (
         "## ROLE-PLAY OUTPUT REPAIR (single allowed attempt)\n"
