@@ -411,7 +411,7 @@ def test_active_turn_uses_one_typed_call_then_commits_candidate_state(
     dialogue_calls = [call for call in provider.calls if call.get("purpose") == "dialogue"]
     assert len(dialogue_calls) == 1
     assert dialogue_calls[0]["tool_choice"]["function"]["name"] == "propose_roleplay_turn"
-    assert dialogue_calls[0]["max_tokens"] == 700
+    assert dialogue_calls[0]["max_tokens"] == 1_400
     assert agent.roleplay.load()["last_beat"] == sensitive_beat
     assert sensitive_beat not in json.dumps(trace, ensure_ascii=False)
     proposal_trace = next(row for row in trace if row.get("event") == "roleplay_proposal")

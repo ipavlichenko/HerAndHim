@@ -2439,7 +2439,7 @@ Don't repeat this if `bot_name` already exists in memory.
         outbound_kw = self._outbound_purpose_kwargs(user_input)
         if outbound_kw.get("purpose") == "dialogue":
             outbound_kw["max_tokens"] = (
-                700 if self.roleplay.is_active()
+                1_400 if self.roleplay.is_active()
                 else self._dialogue_output_budget(user_input)
             )
         initial_tool_choice = self._initial_tool_choice(user_input)

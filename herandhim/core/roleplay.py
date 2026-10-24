@@ -353,18 +353,34 @@ ROLEPLAY_STATE_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "phase": {"type": "string", "description": "Short current scene phase."},
-                "location": {"type": "string", "description": "Exact current location."},
-                "sarah_position": {"type": "string"},
-                "ilya_position": {"type": "string"},
-                "sarah_clothing": {"type": "string"},
-                "ilya_clothing": {"type": "string"},
-                "props": {"type": "array", "items": {"type": "string"}, "maxItems": 12},
-                "rules": {"type": "array", "items": {"type": "string"}, "maxItems": 8},
-                "established_facts": {
-                    "type": "array", "items": {"type": "string"}, "maxItems": 12,
+                "phase": {
+                    "type": "string", "maxLength": 500,
+                    "description": "Short current scene phase.",
                 },
-                "last_beat": {"type": "string", "description": "Last established action/beat."},
+                "location": {
+                    "type": "string", "maxLength": 500,
+                    "description": "Exact current location.",
+                },
+                "sarah_position": {"type": "string", "maxLength": 500},
+                "ilya_position": {"type": "string", "maxLength": 500},
+                "sarah_clothing": {"type": "string", "maxLength": 500},
+                "ilya_clothing": {"type": "string", "maxLength": 500},
+                "props": {
+                    "type": "array", "items": {"type": "string", "maxLength": 240},
+                    "maxItems": 12,
+                },
+                "rules": {
+                    "type": "array", "items": {"type": "string", "maxLength": 240},
+                    "maxItems": 8,
+                },
+                "established_facts": {
+                    "type": "array", "items": {"type": "string", "maxLength": 240},
+                    "maxItems": 12,
+                },
+                "last_beat": {
+                    "type": "string", "maxLength": 500,
+                    "description": "Last established action/beat.",
+                },
                 "consent_state": {
                     "type": "string",
                     "enum": ["mutual", "check_in", "paused", "stopped"],
