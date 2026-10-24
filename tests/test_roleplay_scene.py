@@ -203,7 +203,18 @@ def test_active_turn_may_end_on_a_complete_action_beat():
     assert validate_roleplay_turn(turn, opening=False).valid
     opening_result = validate_roleplay_turn(turn, opening=True)
     assert opening_result.valid is False
-    assert "turn_ends_on_action" in opening_result.issues
+    assert opening_result.issues == ("missing_playable_question",)
+
+
+def test_opening_may_end_on_action_after_a_playable_question():
+    opening = (
+        "*Сара оставляет дверь купе открытой и отодвигает стакан от свободного места.*\n\n"
+        "*Она переводит взгляд с замка на Илью, не приглашая его войти.*\n\n"
+        "— До утра восемь часов. Какое правило тебе нужно, чтобы эта ночь осталась твоим выбором?\n\n"
+        "*Сара кладёт ладонь на дверь и ждёт ответа.*"
+    )
+
+    assert validate_roleplay_turn(opening, opening=True).valid
 
 
 def test_action_ending_must_still_have_complete_inner_punctuation():

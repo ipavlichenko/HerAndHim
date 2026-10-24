@@ -183,8 +183,6 @@ def validate_roleplay_turn(
         issues.append("actions_do_not_identify_sarah")
     if not speech_paragraphs:
         issues.append("missing_direct_speech")
-    if opening and paragraphs and "*" in paragraphs[-1]:
-        issues.append("turn_ends_on_action")
     if opening and speech_paragraphs and "?" not in speech_paragraphs[-1]:
         issues.append("missing_playable_question")
     return RoleplayTurnValidation(not issues, tuple(dict.fromkeys(issues)))
@@ -193,8 +191,9 @@ def validate_roleplay_turn(
 def roleplay_repair_instruction(issues: tuple[str, ...], *, opening: bool) -> str:
     minimum = 220 if opening else 120
     opening_rule = (
-        "Use at least two action paragraphs and end the final plain-text speech "
-        "paragraph with one concrete in-character question that gives Ilya a meaningful move."
+        "Use at least two action paragraphs. The final plain-text speech paragraph must contain "
+        "one concrete in-character question that gives Ilya a meaningful move. A separate "
+        "complete action paragraph may follow that question."
         if opening else
         "Use at least one action paragraph and complete plain-text speech that gives Ilya a move. "
         "The final paragraph may be either complete speech or a separate complete action paragraph."
@@ -441,9 +440,9 @@ class RoleplaySceneStore:
                 " This is the text-only opening turn. " + scene["opening"]
                 + " Render this as lived action and dialogue, never as a rule list or summary. "
                 "Use 220-900 characters, at least two separate Sarah action paragraphs, "
-                "and at least one separate plain-text speech paragraph. End Sarah's final "
-                "speech paragraph with one concrete in-character question that gives Ilya "
-                "a meaningful move."
+                "and at least one separate plain-text speech paragraph. Sarah's final speech "
+                "paragraph must contain one concrete in-character question that gives Ilya "
+                "a meaningful move. A separate complete action paragraph may follow."
             )
         return (
             "## ACTIVE ROLE-PLAY SCENE (durable local state)\n"
