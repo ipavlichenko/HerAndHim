@@ -21,6 +21,7 @@ from herandhim.catalog.state import CatalogState, user_key
 from herandhim.catalog.telegram import ADULT, CatalogTelegramBot, character_label, selection_payload
 from herandhim.catalog.web import app
 from herandhim.core.agent import Agent
+from herandhim.core.output_language import RUSSIAN_OUTPUT_FAILURES
 from herandhim.core.roleplay import ROLEPLAY_SCENARIOS, RoleplaySceneStore, roleplay_start_request
 from herandhim.core.session_store import SessionStore
 from tests.test_roleplay_scene import _Message, _Provider, _tool_call
@@ -641,6 +642,22 @@ def test_portrait_resumes_episode_without_replaying_it_on_every_resume(tmp_path,
         assert all("photo" not in payload for _, payload in resumed.replies)
         assert r.state.selected(1) == e and store.path.read_bytes() == original
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", sorted(RUSSIAN_OUTPUT_FAILURES))
+def test_selecting_heroine_never_replays_a_saved_language_failure(tmp_path, settings, failure):
+    r = runtime(tmp_path, settings)
+    r.state.confirm_adult(1)
+    r.save_player_name(1, "Павел")
+    e = r.select(1, "olga")
+    with r.scope(e):
+        RoleplaySceneStore(e.session_id).start()
+        SessionStore().save(e.session_id, [{"role": "system", "content": "system"},
+                                          {"role": "assistant", "content": failure}])
+    m = Message(data='{"v":1,"character_id":"olga"}')
+    asyncio.run(bot_for(r)._handle_catalog_update(update(m, 1, uid=1), None))
+    assert len(m.replies) == 1 and "photo" in m.replies[0][1]
+    assert r.last_reply(e) == ""
 
 
 @pytest.mark.parametrize("url", ["http://example.org/", "https://user:pass@example.org/", "not-a-url"])

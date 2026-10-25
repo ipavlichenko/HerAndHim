@@ -48,10 +48,23 @@ replaying old saved replies until a new turn has been accepted; history itself
 is retained. Current v3 scene data no longer remigrates an explicitly chosen
 name such as Илья into a generic player label.
 
-Validation: 238 catalogue + 156 core/transport/outbound checks = 394 passing.
+Validation: 240 catalogue + 163 core/transport/outbound checks = 403 passing,
+run in isolated test processes because existing config monkeypatch fixtures
+interfere with runtime scopes when these files share a process.
 The offline installed-package smoke covers all twenty JPEG cards and a synthetic
 dialogue turn. This does not claim an actual Telegram photo delivery or real
 model acceptance; those remain user acceptance after rollout.
+
+The subsequent language-error report exposed an overly strict one-word veto.
+Dialogue now keeps up to two unexplained Latin words when there are at least
+three Russian words per unknown word; it preserves their meaning rather than
+guessing a translation. Known transliteration/confusable repairs still apply.
+Foreign-language passages and unresolved mixed-script words remain blocked,
+with a short ordinary error instead of implementation details. Captions retain
+their strict check. Both old and new language errors are excluded from dialogue
+context and episode replay, while the saved transcript remains intact.
+There is no automatic extra model call. The rejected production text was not
+retained, so its exact offending word cannot be reconstructed from metadata.
 
 ## Local preview
 

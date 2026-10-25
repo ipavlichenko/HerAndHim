@@ -7,6 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from .. import config
+from ..core.output_language import RUSSIAN_OUTPUT_FAILURES
 from ..core.persistent_agent import PersistentAgent
 from ..core.roleplay import RoleplaySceneStore
 from ..core.session_store import SessionStore
@@ -178,8 +179,9 @@ class CatalogRuntime:
     def _stored_reply(self, episode: Episode):
         with self.scope(episode):
             messages = SessionStore().load(episode.session_id)
-        return next((m.get("content", "") for m in reversed(messages)
-                     if m.get("role") == "assistant" and m.get("content")), "")
+        reply = next((m.get("content", "") for m in reversed(messages)
+                      if m.get("role") == "assistant" and m.get("content")), "")
+        return "" if reply in RUSSIAN_OUTPUT_FAILURES else reply
 
     async def chat(self, episode: Episode, text: str, *, proactive=False):
         # to_thread copies ContextVars; the old run_in_executor call did not.

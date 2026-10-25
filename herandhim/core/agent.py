@@ -46,6 +46,7 @@ from .memory.manager import MemoryManager
 from .memory.temporal_index import TimelineEvent
 from .output_language import (
     RUSSIAN_OUTPUT_FAILURE_TEXT,
+    RUSSIAN_OUTPUT_FAILURES,
     RUSSIAN_OUTPUT_INSTRUCTION,
     RussianOutputError,
     enforce_russian_output,
@@ -1412,6 +1413,8 @@ Don't repeat this if `bot_name` already exists in memory.
             if message.get("role") != "assistant" or not isinstance(message.get("content"), str):
                 result.append(message)
                 continue
+            if message["content"] in RUSSIAN_OUTPUT_FAILURES and not message.get("tool_calls"):
+                continue
             guarded, replaced = enforce_immersion(message["content"], language)
             guarded, language_repaired = enforce_russian_output(
                 guarded, language, allowed_latin=allowed_latin, strict=False,
@@ -2464,7 +2467,9 @@ Don't repeat this if `bot_name` already exists in memory.
         if replaced:
             logger.warning("[Agent] Replaced an ordinary-dialogue immersion break")
         try:
-            guarded, repaired = enforce_russian_output(guarded, language, allowed_latin=allowed_latin)
+            guarded, repaired = enforce_russian_output(
+                guarded, language, allowed_latin=allowed_latin, tolerate_isolated_latin=True,
+            )
         except RussianOutputError:
             logger.warning("[Agent] output_language: rejected unexpected_latin_output")
             return RUSSIAN_OUTPUT_FAILURE_TEXT
@@ -2486,6 +2491,7 @@ Don't repeat this if `bot_name` already exists in memory.
         rendered = render_roleplay_turn(proposal)
         rendered, repaired = enforce_russian_output(
             rendered, "ru", allowed_latin=self._allowed_output_latin(),
+            tolerate_isolated_latin=True,
         )
         if repaired:
             logger.info("[Agent] output_language: repaired Russian scene script")

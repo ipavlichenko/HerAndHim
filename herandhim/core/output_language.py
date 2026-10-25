@@ -1,7 +1,7 @@
-"""Conservative Cyrillic boundary for Russian companion prose.
+"""Cyrillic normalization and a bounded language check for Russian prose.
 
 Never transliterate arbitrary English: repair known Russian misspellings, preserve
-literal technical text, and reject unexplained Latin before accepting a turn.
+literal technical text, and distinguish isolated words from a language switch.
 """
 
 from __future__ import annotations
@@ -15,9 +15,13 @@ RUSSIAN_OUTPUT_INSTRUCTION = (
     "Сохраняй названия, ссылки, код и цитаты пользователя."
 )
 RUSSIAN_OUTPUT_FAILURE_TEXT = (
+    "Не получилось подготовить ответ. Попробуй отправить сообщение ещё раз."
+)
+LEGACY_RUSSIAN_OUTPUT_FAILURE_TEXT = (
     "В ответе появилась непонятная латинская вставка. "
     "Этот вариант не принят; автоматического повтора не было."
 )
+RUSSIAN_OUTPUT_FAILURES = frozenset({RUSSIAN_OUTPUT_FAILURE_TEXT, LEGACY_RUSSIAN_OUTPUT_FAILURE_TEXT})
 
 
 class RussianOutputError(ValueError):
@@ -38,7 +42,7 @@ _LITERAL = re.compile(
 _BRANDS_AND_TERMS = frozenset(word.casefold() for word in (
     "Telegram", "OpenAI", "ChatGPT", "Codex", "Google", "YouTube", "WhatsApp",
     "Spotify", "Figma", "Notion", "GitHub", "iPhone", "MacBook", "iOS",
-    "Android", "Windows", "Linux", "Wi", "Fi",
+    "Android", "Windows", "Linux", "Wi", "Fi", "AIGirla",
 ))
 _ACRONYMS = frozenset({"USB", "PDF", "IT", "UI", "UX", "API", "GPT", "AI", "OK"})
 # Deliberately small: the observed word and its unambiguous Russian inflections.
@@ -76,6 +80,7 @@ def latin_literals(sources: Iterable[str]) -> frozenset[str]:
 
 def enforce_russian_output(
     text: str, language: str, *, allowed_latin: Iterable[str] = (), strict: bool = True,
+    tolerate_isolated_latin: bool = False,
 ) -> tuple[str, bool]:
     """Repair prose only, without rewriting URLs/code/names or guessing translations.
 
@@ -87,10 +92,9 @@ def enforce_russian_output(
     allowed = _BRANDS_AND_TERMS | frozenset(token.casefold() for token in allowed_latin)
     literal_spans = [(match.start(), match.end()) for match in _LITERAL.finditer(text)]
     russian_prose = bool(_CYRILLIC.search(_LITERAL.sub("", text)))
-    unresolved = False
+    unresolved: list[str] = []
 
     def replace(match: re.Match) -> str:
-        nonlocal unresolved
         word = match.group()
         if not _has_latin(word) or word.casefold() in allowed or word in _ACRONYMS:
             return word
@@ -103,10 +107,16 @@ def enforce_russian_output(
         elif russian_prose and word.casefold() in _TRANSLIT:
             repaired = _TRANSLIT[word.casefold()]
             return repaired.upper() if word.isupper() else repaired.capitalize() if word.istitle() else repaired
-        unresolved = True
+        unresolved.append(word)
         return word
 
     repaired = _WORD.sub(replace, text)
     if strict and unresolved:
-        raise RussianOutputError()
+        words = _WORD.findall(_LITERAL.sub("", repaired))
+        russian_words = sum(bool(_CYRILLIC.search(word)) and not _has_latin(word) for word in words)
+        isolated = (tolerate_isolated_latin and len(unresolved) <= 2
+                    and russian_words >= 3 * len(unresolved)
+                    and not any(_CYRILLIC.search(word) for word in unresolved))
+        if not isolated:
+            raise RussianOutputError()
     return repaired, repaired != text

@@ -8,6 +8,7 @@ import pytest
 
 from herandhim.core.agent import Agent
 from herandhim.core.output_language import (
+    LEGACY_RUSSIAN_OUTPUT_FAILURE_TEXT,
     RUSSIAN_OUTPUT_FAILURE_TEXT,
     RUSSIAN_OUTPUT_INSTRUCTION,
     RussianOutputError,
@@ -137,7 +138,7 @@ def test_scene_incident_is_repaired_before_commit_history_and_telegram(tmp_path,
 
 
 def test_unknown_scene_insertion_never_commits_or_retries(tmp_path, monkeypatch):
-    provider = _Provider([_proposal("Я хочу этого wonderful.")])
+    provider = _Provider([_proposal("I would like to walk outside.")])
     agent = _agent(provider, tmp_path, monkeypatch)
     agent.roleplay.start()
     agent.roleplay.mark_opened()
@@ -146,8 +147,41 @@ def test_unknown_scene_insertion_never_commits_or_retries(tmp_path, monkeypatch)
     assert agent.chat("Я слушаю.") == RUSSIAN_OUTPUT_FAILURE_TEXT
     assert agent.roleplay.load() == before
     assert agent.messages[-1]["content"] == RUSSIAN_OUTPUT_FAILURE_TEXT
-    assert "wonderful" not in json.dumps(agent.messages, ensure_ascii=False)
+    assert "walk outside" not in json.dumps(agent.messages, ensure_ascii=False)
     assert len(provider.calls) == 1
+
+
+@pytest.mark.parametrize("text", [
+    "Я открыла маленькую кофейню под названием Riverside.",
+    "Я выбрала для нашей прогулки новый маршрут через Central Park.",
+    "Мне нравится твой сегодняшний casual образ, тебе очень идёт.",
+])
+def test_isolated_latin_does_not_discard_an_otherwise_russian_reply(text):
+    assert enforce_russian_output(text, "ru", tolerate_isolated_latin=True) == (text, False)
+
+
+@pytest.mark.parametrize("text", [
+    "Let us keep talking.", "Я предлагаю go for a walk outside.", "Реши SAMА.",
+])
+def test_tolerant_prose_still_rejects_language_switch_and_ambiguous_mixed_script(text):
+    with pytest.raises(RussianOutputError):
+        enforce_russian_output(text, "ru", tolerate_isolated_latin=True)
+
+
+def test_isolated_word_is_delivered_in_one_call_and_old_failure_does_not_prime_reply(tmp_path, monkeypatch):
+    speech = "Я предлагаю зайти в маленькую кофейню Riverside. Пойдём?"
+    provider = _Provider([_proposal(speech)])
+    agent = _agent(provider, tmp_path, monkeypatch)
+    agent.roleplay.start()
+    agent.roleplay.mark_opened()
+    saved = {"role": "assistant", "content": LEGACY_RUSSIAN_OUTPUT_FAILURE_TEXT}
+    agent.messages.append(saved)
+    before = agent.roleplay.load()["turn_index"]
+    reply = agent.chat("Куда пойдём?")
+    assert speech in reply and len(provider.calls) == 1
+    assert agent.roleplay.load()["turn_index"] == before + 1
+    assert saved in agent.messages
+    assert LEGACY_RUSSIAN_OUTPUT_FAILURE_TEXT not in json.dumps(provider.calls[0]["messages"], ensure_ascii=False)
 
 
 @pytest.mark.parametrize("stream", [False, True])
