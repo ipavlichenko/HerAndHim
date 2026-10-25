@@ -507,7 +507,7 @@ def _migrate_legacy_player_references(value: object) -> object:
         migrated = {
             ("player_position" if key == "ilya_position" else
              "player_clothing" if key == "ilya_clothing" else key):
-            _migrate_legacy_player_references(row)
+            row if key == "player_name" else _migrate_legacy_player_references(row)
             for key, row in value.items()
         }
         return migrated
@@ -568,7 +568,8 @@ class RoleplaySceneStore:
                 return None
             if not isinstance(state, dict) or state.get("scene_id") not in _SCENARIOS_BY_ID:
                 return None
-            state = _migrate_legacy_player_references(state)
+            if state.get("version") != 3 or "ilya_position" in state or "ilya_clothing" in state:
+                state = _migrate_legacy_player_references(state)
             state["version"] = 3
             state["player_name"] = _bounded_text(
                 self._player_name or state.get("player_name"), 40

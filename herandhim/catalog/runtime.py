@@ -159,7 +159,23 @@ class CatalogRuntime:
         with self.scope(episode):
             return RoleplaySceneStore(episode.session_id).is_active()
 
+    def save_player_name(self, user_id: int, name: str):
+        sid = user_key(user_id)
+        if name != self.transport.player_name(sid):
+            # Historical replies stay intact, but must not be replayed with an
+            # obsolete address. Keep this barrier through restart/agent loading.
+            self.state.suppress_old_replies(user_id)
+        for episode in self.state.episodes(user_id):
+            self.transport.discard_pending(episode.session_id)
+        self.transport.save_player_name(sid, name)
+        self.state.confirm_name(user_id)
+
     def last_reply(self, episode: Episode):
+        if self.state.reply_suppressed(episode.id):
+            return ""
+        return self._stored_reply(episode)
+
+    def _stored_reply(self, episode: Episode):
         with self.scope(episode):
             messages = SessionStore().load(episode.session_id)
         return next((m.get("content", "") for m in reversed(messages)
@@ -173,7 +189,10 @@ class CatalogRuntime:
             method = agent.chat_proactive if proactive else agent.chat
             task = asyncio.create_task(asyncio.to_thread(method, text))
             try:
-                return await asyncio.shield(task)
+                response = await asyncio.shield(task)
+                if response and response == self._stored_reply(episode):
+                    self.state.allow_reply(episode.id)
+                return response
             except asyncio.CancelledError:
                 # Cancellation does not stop a Python worker. Keep the caller's
                 # user lock until its state writes finish, then propagate it.

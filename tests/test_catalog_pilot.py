@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from herandhim import config
 from herandhim.catalog.characters import CHARACTERS
+from herandhim.catalog.portraits import portrait_jpeg
 from herandhim.catalog.runtime import CatalogRuntime, CharacterSceneStore
 from herandhim.catalog.state import CatalogState, user_key
 from herandhim.catalog.telegram import ADULT, CatalogTelegramBot, character_label, selection_payload
@@ -222,6 +226,9 @@ class Message:
     async def reply_text(self, text, **kwargs):
         self.replies.append((text, kwargs))
 
+    async def reply_photo(self, photo, caption, **kwargs):
+        self.replies.append((caption, {**kwargs, "photo": photo.read(), "filename": photo.name}))
+
 
 def bot_for(r):
     return CatalogTelegramBot(r, "synthetic", "https://example.org/", public=True, allowed_users=[1])
@@ -247,6 +254,7 @@ def test_name_age_selection_resume_and_dedup_without_inference(tmp_path, setting
         await bot._handle_catalog_update(update(m, 4), None)
         assert r.state.selected(2).character_id == "eva"
         assert "Ева" in m.replies[0][0]
+        assert m.replies[0][1]["photo"] == portrait_jpeg("eva")
         await bot._handle_catalog_update(update(m, 4), None)
         assert len(m.replies) == 1
         group = Message("/start")
@@ -299,6 +307,7 @@ def test_outbound_uses_catalog_keyboard_and_respects_hidden_preference(tmp_path,
 def test_proactive_only_selected_and_switch_is_serialized(tmp_path, settings):
     r = runtime(tmp_path, settings)
     r.state.confirm_adult(2)
+    r.save_player_name(2, "Павел")
     first = r.select(2, "sara")
     second = r.select(2, "eva")
     for e in [first, second]:
@@ -413,7 +422,7 @@ def test_explicit_silence_is_not_shortened_and_incoming_turn_clears_queue(tmp_pa
     from datetime import datetime, timedelta, timezone
     r = runtime(tmp_path, settings)
     r.state.confirm_adult(2)
-    r.transport.save_player_name("telegram:2", "Паша")
+    r.save_player_name(2, "Паша")
     episode = r.select(2, "eva")
     with r.scope(episode):
         RoleplaySceneStore(episode.session_id).start()
@@ -446,7 +455,7 @@ def test_player_called_sarah_is_not_renamed_to_the_character(tmp_path, settings)
 def test_native_selection_gates_and_shared_webapp_state(tmp_path, settings):
     r = runtime(tmp_path, settings)
     bot = CatalogTelegramBot(r, "synthetic", "", public=False, allowed_users=[1])
-    r.transport.save_player_name("telegram:1", "Павел")
+    r.save_player_name(1, "Павел")
     number = 0
 
     async def send(text="", data=None, uid=1, chat_type="private"):
@@ -472,6 +481,15 @@ def test_native_selection_gates_and_shared_webapp_state(tmp_path, settings):
             chosen = await send(character_label(companion))
             assert r.state.selected(1).character_id == companion.id
             assert companion.name in chosen.replies[0][0]
+            caption, payload = chosen.replies[0]
+            assert str(companion.age) in caption and companion.description in caption
+            assert len(caption.encode("utf-16-le")) // 2 <= 1024
+            assert payload["filename"] == f"{companion.id}.jpg"
+            with Image.open(BytesIO(payload["photo"])) as image:
+                assert image.format == "JPEG" and image.width + image.height <= 10000
+                assert max(image.size) / min(image.size) <= 20
+                image.verify()
+            assert payload["photo"] == portrait_jpeg(companion.id)
         first = r.state.selected(1)
         await send(data=json.dumps({"v": 1, "character_id": first.character_id}))
         assert r.state.selected(1) == first
@@ -493,6 +511,135 @@ def test_native_selection_gates_and_shared_webapp_state(tmp_path, settings):
         assert r.state.selected(1) == first
         restarted = CatalogRuntime(r.provider, tmp_path, settings)
         assert restarted.state.selected(1) == first
+    asyncio.run(scenario())
+
+
+def test_existing_schema_requires_name_once_and_remains_rollback_compatible(tmp_path, settings):
+    path = tmp_path / "context/state/catalog.sqlite3"
+    path.parent.mkdir(parents=True)
+    with sqlite3.connect(path) as db:
+        db.executescript("""
+            CREATE TABLE catalog_players (user_id INTEGER PRIMARY KEY, adult INTEGER NOT NULL DEFAULT 0,
+                active_character TEXT, proactive INTEGER NOT NULL DEFAULT 1);
+            INSERT INTO catalog_players VALUES (1,1,NULL,1);
+        """)
+    r = runtime(tmp_path, settings)
+    r.transport.save_player_name("telegram:1", "Саша")
+    episode = r.select(1, "olga")
+    with r.scope(episode):
+        store = RoleplaySceneStore(episode.session_id)
+        store.set_player_name("Саша")
+        store.start()
+        original = store.path.read_bytes()
+    bot = bot_for(r)
+
+    async def scenario():
+        m = Message(character_label(next(c for c in CHARACTERS if c.id == "olga")))
+        await bot._handle_catalog_update(update(m, 1, uid=1), None)
+        assert "Как тебя называть" in m.replies[0][0]
+        assert r.transport.awaiting_player_name("telegram:1")
+        invalid = Message("Продолжить историю")
+        await bot._handle_catalog_update(update(invalid, 2, uid=1), None)
+        assert r.transport.player_name("telegram:1") == "Саша"
+        assert not r.state.name_confirmed(1)
+        await bot._handle_catalog_update(update(Message("Илья"), 3, uid=1), None)
+        assert r.state.name_confirmed(1) and r.transport.player_name("telegram:1") == "Илья"
+        restarted = runtime(tmp_path, settings)
+        m = Message("/start")
+        await bot_for(restarted)._handle_catalog_update(update(m, 4, uid=1), None)
+        assert "каталог" in m.replies[0][0] and "Как тебя называть" not in m.replies[0][0]
+        assert restarted.state.selected(1) == episode
+        assert store.path.read_bytes() == original
+    asyncio.run(scenario())
+    # The previous runtime's positional INSERT still works after this migration.
+    with r.state.connect() as db:
+        db.execute("INSERT OR IGNORE INTO catalog_players VALUES (?,0,NULL,1)", (1,))
+
+
+def test_name_change_blocks_stale_replay_and_delivery_across_heroines(tmp_path, settings, monkeypatch):
+    monkeypatch.setattr(Agent, "_update_affect", lambda *_: None)
+    replies = [_Message(tool_calls=[_tool_call("propose_roleplay_turn", {
+        "state_delta": {"last_beat": f"{name} предлагает прогулку", "consent_state": "check_in"},
+        "beats": [{"type": "action", "text": f"{name} берёт карту города."},
+                  {"type": "speech", "text": "Илья, пойдём к реке?"}]} )]) for name in ["Ника", "Сара"]]
+    provider = _Provider(replies)
+    r = CatalogRuntime(provider, tmp_path, settings)
+    r.state.confirm_adult(1)
+    r.save_player_name(1, "Саша")
+    episodes = [r.select(1, "sara"), r.select(1, "nika")]
+    original_history = {}
+    for e in episodes:
+        with r.scope(e):
+            a = r.agent(e)
+            a.roleplay.start()
+            SessionStore().save(e.session_id, [{"role": "system", "content": "system"},
+                                              {"role": "assistant", "content": "Саша, привет."}])
+            original_history[e.id] = Path(SessionStore()._path(e.session_id)).read_bytes()
+        r.transport.enqueue(e.session_id, 1, "Саша, привет.", reason="roleplay")
+    try:
+        bot = bot_for(r)
+        async def scenario():
+            await bot._handle_catalog_update(update(Message("/name"), 1, uid=1), None)
+            # Even a previously confirmed name cannot enable queued initiative while changing it.
+            await bot._tick_user(1)
+            assert r.transport.pending_count(episodes[-1].session_id) == 1
+            await bot._handle_catalog_update(update(Message("Илья"), 2, uid=1), None)
+            for e in reversed(episodes):
+                assert r.transport.pending_count(e.session_id) == 0
+                with r.scope(e):
+                    assert Path(SessionStore()._path(e.session_id)).read_bytes() == original_history[e.id]
+                # Loading a cached or restored agent must not unblock a historical reply.
+                with r.scope(e):
+                    r.agent(e)
+                m = Message(character_label(next(c for c in CHARACTERS if c.id == e.character_id)))
+                await bot._handle_catalog_update(update(m, 3 + len(provider.calls), uid=1), None)
+                assert len(m.replies) == 1 and "photo" in m.replies[0][1]
+                assert r.last_reply(e) == ""
+                result = await r.chat(e, "Предлагаю прогуляться.")
+                assert "Илья" in result and r.last_reply(e) == result
+                with r.scope(e):
+                    assert RoleplaySceneStore(e.session_id).load()["player_name"] == "Илья"
+            assert len(provider.calls) == 2
+            for call in provider.calls:
+                assert 'chosen name is \\"Илья\\"' in json.dumps(call, ensure_ascii=False)
+        asyncio.run(scenario())
+    finally:
+        r.close()
+
+
+def test_unconfirmed_legacy_name_cannot_send_queued_initiative(tmp_path, settings):
+    r = runtime(tmp_path, settings)
+    r.state.confirm_adult(1)
+    r.transport.save_player_name("telegram:1", "Саша")
+    e = r.select(1, "sara")
+    with r.scope(e):
+        RoleplaySceneStore(e.session_id).start()
+    r.transport.enqueue(e.session_id, 1, "Саша, привет.", reason="roleplay")
+    asyncio.run(bot_for(r)._tick_user(1))
+    assert r.transport.pending_count(e.session_id) == 1
+    assert not r.transport.awaiting_player_name("telegram:1")
+
+
+def test_portrait_resumes_episode_without_replaying_it_on_every_resume(tmp_path, settings):
+    r = runtime(tmp_path, settings)
+    r.state.confirm_adult(1)
+    r.save_player_name(1, "Павел")
+    e = r.select(1, "olga")
+    with r.scope(e):
+        store = RoleplaySceneStore(e.session_id)
+        store.start()
+        original = store.path.read_bytes()
+    bot = bot_for(r)
+    async def scenario():
+        selected = Message(data='{"v":1,"character_id":"olga"}')
+        await bot._handle_catalog_update(update(selected, 1, uid=1), None)
+        assert selected.replies[0][1]["photo"] == portrait_jpeg("olga")
+        assert "Ваша история сохранена" in selected.replies[0][0]
+        assert selected.replies[0][1]["reply_markup"].keyboard[0][0].text == "Выбрать героиню"
+        resumed = Message("Продолжить историю")
+        await bot._handle_catalog_update(update(resumed, 2, uid=1), None)
+        assert all("photo" not in payload for _, payload in resumed.replies)
+        assert r.state.selected(1) == e and store.path.read_bytes() == original
     asyncio.run(scenario())
 
 

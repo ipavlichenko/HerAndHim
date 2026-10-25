@@ -76,6 +76,16 @@ def test_scene_state_is_bounded_atomic_and_survives_recreation(tmp_path):
     assert json.loads(store.path.read_text(encoding="utf-8"))["turn_index"] == 1
 
 
+def test_current_player_named_ilya_is_not_treated_as_a_legacy_owner(tmp_path):
+    store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    store.set_player_name("Илья")
+    store.start()
+    store.update({"last_beat": "Илья предложил прогулку"})
+    restored = RoleplaySceneStore("telegram:42", root=tmp_path).load()
+    assert restored["player_name"] == "Илья"
+    assert restored["last_beat"] == "Илья предложил прогулку"
+
+
 def test_candidate_state_is_copy_on_write_until_explicit_commit(tmp_path):
     store = RoleplaySceneStore("telegram:42", root=tmp_path)
     before = store.start()

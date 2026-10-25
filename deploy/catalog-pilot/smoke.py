@@ -2,9 +2,12 @@
 import asyncio
 import json
 import tempfile
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+
+from PIL import Image
 
 from herandhim.catalog.characters import CHARACTERS
 from herandhim.catalog.runtime import CatalogRuntime
@@ -41,6 +44,9 @@ class Message:
     async def reply_text(self, text, **kwargs):
         self.replies.append((text, kwargs))
 
+    async def reply_photo(self, photo, caption, **kwargs):
+        self.replies.append((caption, {**kwargs, "photo": photo.read()}))
+
 
 async def check(root):
     provider = Provider()
@@ -65,6 +71,13 @@ async def check(root):
         assert "18 лет" in (await send("Павел")).replies[0][0]
         catalog = await send(ADULT)
         assert len(catalog.replies[0][1]["reply_markup"].keyboard) == 10
+        for companion in CHARACTERS:
+            card = await send(character_label(companion))
+            caption, payload = card.replies[0]
+            assert companion.description in caption
+            with Image.open(BytesIO(payload["photo"])) as image:
+                assert image.format == "JPEG"
+                image.verify()
         nika = next(c for c in CHARACTERS if c.id == "nika")
         await send(character_label(nika))
         before = runtime.state.selected(1)
@@ -86,10 +99,11 @@ async def check(root):
         assert runtime.state.selected(1) == episode
         restarted = CatalogRuntime(provider, root, settings)
         assert restarted.state.selected(1) == episode
+        assert restarted.state.name_confirmed(1)
         assert "Ника берёт карту" in restarted.last_reply(episode)
         restarted.close()
         assert provider.calls == 1
-        print(json.dumps({"installed_smoke": "PASS", "characters": len(CHARACTERS),
+        print(json.dumps({"installed_smoke": "PASS", "characters": len(CHARACTERS), "portrait_cards": len(CHARACTERS),
                           "synthetic_completions": provider.calls, "live_calls": 0,
                           "telegram_messages": 0}))
     finally:

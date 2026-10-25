@@ -44,6 +44,12 @@ class CatalogState:
                     id TEXT NOT NULL UNIQUE, legacy INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY(user_id, character_id)
                 );
+                CREATE TABLE IF NOT EXISTS catalog_name_confirmations (
+                    user_id INTEGER PRIMARY KEY
+                );
+                CREATE TABLE IF NOT EXISTS catalog_stale_replies (
+                    episode_id TEXT PRIMARY KEY
+                );
             """)
             if legacy_owner is not None:
                 user_key(legacy_owner)
@@ -79,6 +85,32 @@ class CatalogState:
         with self.connect() as db:
             row = db.execute("SELECT adult FROM catalog_players WHERE user_id=?", (user_id,)).fetchone()
             return bool(row and row[0])
+
+    def confirm_name(self, user_id: int):
+        user_key(user_id)
+        with self.connect() as db:
+            db.execute("INSERT OR IGNORE INTO catalog_name_confirmations VALUES (?)", (user_id,))
+
+    def name_confirmed(self, user_id: int):
+        with self.connect() as db:
+            return db.execute("SELECT 1 FROM catalog_name_confirmations WHERE user_id=?", (user_id,)).fetchone() is not None
+
+    def episodes(self, user_id: int):
+        with self.connect() as db:
+            return [Episode(**dict(row)) for row in db.execute(
+                "SELECT * FROM catalog_episodes WHERE user_id=?", (user_id,))]
+
+    def suppress_old_replies(self, user_id: int):
+        with self.connect() as db:
+            db.execute("INSERT OR IGNORE INTO catalog_stale_replies SELECT id FROM catalog_episodes WHERE user_id=?", (user_id,))
+
+    def reply_suppressed(self, episode_id: str):
+        with self.connect() as db:
+            return db.execute("SELECT 1 FROM catalog_stale_replies WHERE episode_id=?", (episode_id,)).fetchone() is not None
+
+    def allow_reply(self, episode_id: str):
+        with self.connect() as db:
+            db.execute("DELETE FROM catalog_stale_replies WHERE episode_id=?", (episode_id,))
 
     def selected(self, user_id: int) -> Episode | None:
         user_key(user_id)

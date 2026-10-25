@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from urllib.parse import urlsplit
 
 from telegram import BotCommand, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, WebAppInfo
@@ -25,6 +26,7 @@ from ..core.roleplay import (
 from ..core.telegram_transport import parse_silence_boundary
 from ..scheduler.proactive import ProactiveMessenger, _build_roleplay_continuation_prompt, _get_sentiment_context
 from .characters import CHARACTERS, character
+from .portraits import portrait_jpeg
 from .runtime import CatalogRuntime, named
 from .state import user_key
 
@@ -96,9 +98,10 @@ class CatalogTelegramBot(TelegramBot):
 
     async def _onboard(self, message, uid):
         sid = user_key(uid)
-        if not self._transport.player_name(sid):
+        if (not self._transport.player_name(sid) or not self.runtime.state.name_confirmed(uid)
+                or self._transport.awaiting_player_name(sid)):
             self._transport.begin_player_name_onboarding(sid)
-            await message.reply_text("Добро пожаловать в AIGirla. Здесь тебя ждут вымышленные AI-героини и истории для взрослых. Как тебя называть?",
+            await message.reply_text("Как тебя называть в AIGirla? Напиши имя — сохраню его для всех героинь.",
                                      reply_markup=ReplyKeyboardRemove())
             return True
         if not self.runtime.state.is_adult(uid):
@@ -115,16 +118,24 @@ class CatalogTelegramBot(TelegramBot):
         await message.reply_text("С кем начнётся твоя история? Открой каталог и выбери героиню.",
                                  reply_markup=self.keyboard())
 
-    async def _resume(self, message, episode):
+    async def _resume(self, message, episode, *, show_portrait=False):
         companion = character(episode.character_id)
-        if self.runtime.scene_active(episode):
-            await message.reply_text(f"{companion.name} · продолжаем вашу историю.", reply_markup=self.keyboard())
+        active = self.runtime.scene_active(episode)
+        caption = f"{companion.name}, {companion.age}. {companion.tagline}\n\n{companion.description}"
+        caption += ("\n\nВаша история сохранена. Продолжай своим сообщением." if active
+                    else "\n\nВыбери историю — каждая начинается заново.")
+        markup = self.keyboard() if active else _scenario_menu_keyboard()
+        if show_portrait:
+            with BytesIO(portrait_jpeg(companion.id)) as photo:
+                photo.name = f"{companion.id}.jpg"
+                await message.reply_photo(photo=photo, caption=caption, reply_markup=markup)
+        else:
+            await message.reply_text(f"{companion.name} · продолжаем вашу историю." if active else caption,
+                                     reply_markup=markup)
+        if active:
             last = self.runtime.last_reply(episode)
             if last:
                 await message.reply_text(_roleplay_to_html(last), parse_mode="HTML")
-        else:
-            await message.reply_text(f"{companion.name}, {companion.age}. {companion.tagline}\n\n{companion.description}\n\nВыбери историю — каждая начинается заново.",
-                                     reply_markup=_scenario_menu_keyboard())
 
     async def _handle_catalog_update(self, update, context):
         message, sender, chat = update.effective_message, update.effective_user, update.effective_chat
@@ -161,10 +172,10 @@ class CatalogTelegramBot(TelegramBot):
             return
         if self._transport.awaiting_player_name(sid) and text and not command:
             value = _normalize_player_name(text)
-            if not value or text == ADULT:
+            if not value or text in {ADULT, CATALOG, STORIES, RESUME, HIDE} or roleplay_scenario_for_label(text):
                 await message.reply_text("Напиши имя: от 1 до 40 букв, без цифр и ссылок.")
                 return
-            self._transport.save_player_name(sid, value)
+            self.runtime.save_player_name(uid, value)
             if not await self._onboard(message, uid):
                 await self._show_catalog(message)
             return
@@ -176,12 +187,12 @@ class CatalogTelegramBot(TelegramBot):
         web_data = getattr(message, "web_app_data", None)
         if web_data:
             selected = self.runtime.select(uid, selection_payload(web_data.data))
-            await self._resume(message, selected)
+            await self._resume(message, selected, show_portrait=True)
             return
         companion = next((c for c in CHARACTERS if text == character_label(c)), None)
         if companion:
             selected = self.runtime.select(uid, companion.id)
-            await self._resume(message, selected)
+            await self._resume(message, selected, show_portrait=True)
             return
         if command in {"/start", "/characters"} or text in {CATALOG, ADULT}:
             await self._show_catalog(message)
@@ -259,6 +270,9 @@ class CatalogTelegramBot(TelegramBot):
             if not self._is_allowed(uid):
                 return
             sid = user_key(uid)
+            if (not self.runtime.state.name_confirmed(uid) or not self._transport.player_name(sid)
+                    or self._transport.awaiting_player_name(sid)):
+                return
             episode = self.runtime.state.selected(uid)
             if uid not in self.runtime.state.active_users() or not episode or not self.runtime.scene_active(episode):
                 return

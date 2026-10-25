@@ -27,9 +27,31 @@ Immediate rollback tag: `herandhim-sara:rollback-pre-aigirla-963dd91`;
 prior config: `/srv/sara/backups/aigirla-pre-963dd91-config.json`.
 Only the catalogue config block changed; route/privacy/budgets were preserved.
 
-Owner acceptance: `/start` → 18+ → heroine → story, then exchange a few turns.
+Owner acceptance: `/start` → name → 18+ → heroine → story, then exchange a few turns.
 Use `/characters` to switch and return, `/stories` for an independent episode,
-and `/pause` to stop initiative. A saved name is reused; `/name` changes it.
+and `/pause` to stop initiative. After confirming a name in AIGirla it is reused;
+`/name` changes it for every heroine.
+
+## Portrait and name follow-up
+
+Both native and Mini App selection send the chosen heroine's packaged portrait
+as a photo, with name, age, description and the appropriate story keyboard.
+WebP assets are encoded to JPEG in memory using the existing Pillow dependency;
+there is no generation call, external media host, new spend or image editing.
+An explicit story resume does not resend the portrait.
+
+Names imported from the previous bot require one explicit entry in AIGirla.
+Confirmation persists in an additive SQLite table, preserving compatibility
+with the previous runtime. Initiative waits for confirmation and pauses during
+`/name`. A changed name discards queued replies for every heroine and prevents
+replaying old saved replies until a new turn has been accepted; history itself
+is retained. Current v3 scene data no longer remigrates an explicitly chosen
+name such as Илья into a generic player label.
+
+Validation: 238 catalogue + 156 core/transport/outbound checks = 394 passing.
+The offline installed-package smoke covers all twenty JPEG cards and a synthetic
+dialogue turn. This does not claim an actual Telegram photo delivery or real
+model acceptance; those remain user acceptance after rollout.
 
 ## Local preview
 
@@ -133,8 +155,8 @@ delivery settings after restart.
 - Per-user locking is within one bot process. Do not run several polling workers.
 - Only the current episode per heroine is selectable; old independent episode
   files are retained. Retention/deletion UX is not in this increment.
-- The name AIGirla and its wordmark/star are approved. The domain is not yet
-  registered. Registry absence is not a price quote, a purchase, or trademark clearance.
+- The name AIGirla and its wordmark/star are approved. The independent landing
+  task has published HTTPS at https://aigirla.com/; Mini App integration is separate.
 - Private chat means isolated from other users, not end-to-end encrypted or
   anonymous: Telegram, the service operator and the AI route process the data.
 
