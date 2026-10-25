@@ -98,6 +98,8 @@ class CatalogTelegramBot(TelegramBot):
 
     async def _onboard(self, message, uid):
         sid = user_key(uid)
+        if not self.runtime.state.name_confirmed(uid):
+            self.runtime.state.begin_onboarding(uid)
         if (not self._transport.player_name(sid) or not self.runtime.state.name_confirmed(uid)
                 or self._transport.awaiting_player_name(sid)):
             self._transport.begin_player_name_onboarding(sid)
@@ -166,6 +168,10 @@ class CatalogTelegramBot(TelegramBot):
         sid = user_key(uid)
         text = (message.text or "").strip()
         command = text.split(maxsplit=1)[0].split("@", 1)[0] if text.startswith("/") else ""
+        if command == "/start":
+            self.runtime.state.begin_onboarding(uid)
+            await self._onboard(message, uid)
+            return
         if command == "/name":
             self._transport.begin_player_name_onboarding(sid)
             await message.reply_text("Как тебя называть?", reply_markup=ReplyKeyboardRemove())
@@ -194,7 +200,7 @@ class CatalogTelegramBot(TelegramBot):
             selected = self.runtime.select(uid, companion.id)
             await self._resume(message, selected, show_portrait=True)
             return
-        if command in {"/start", "/characters"} or text in {CATALOG, ADULT}:
+        if command == "/characters" or text in {CATALOG, ADULT}:
             await self._show_catalog(message)
             return
         if command == "/pause":

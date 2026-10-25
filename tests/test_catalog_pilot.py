@@ -543,11 +543,14 @@ def test_existing_schema_requires_name_once_and_remains_rollback_compatible(tmp_
         await bot._handle_catalog_update(update(invalid, 2, uid=1), None)
         assert r.transport.player_name("telegram:1") == "Саша"
         assert not r.state.name_confirmed(1)
-        await bot._handle_catalog_update(update(Message("Илья"), 3, uid=1), None)
+        name = Message("Илья")
+        await bot._handle_catalog_update(update(name, 3, uid=1), None)
         assert r.state.name_confirmed(1) and r.transport.player_name("telegram:1") == "Илья"
+        assert "18 лет" in name.replies[0][0] and not r.state.is_adult(1)
+        await bot._handle_catalog_update(update(Message(ADULT), 4, uid=1), None)
         restarted = runtime(tmp_path, settings)
-        m = Message("/start")
-        await bot_for(restarted)._handle_catalog_update(update(m, 4, uid=1), None)
+        m = Message("/characters")
+        await bot_for(restarted)._handle_catalog_update(update(m, 5, uid=1), None)
         assert "каталог" in m.replies[0][0] and "Как тебя называть" not in m.replies[0][0]
         assert restarted.state.selected(1) == episode
         assert store.path.read_bytes() == original
@@ -555,6 +558,34 @@ def test_existing_schema_requires_name_once_and_remains_rollback_compatible(tmp_
     # The previous runtime's positional INSERT still works after this migration.
     with r.state.connect() as db:
         db.execute("INSERT OR IGNORE INTO catalog_players VALUES (?,0,NULL,1)", (1,))
+
+
+def test_start_always_asks_name_then_age_without_resetting_story(tmp_path, settings):
+    r = runtime(tmp_path, settings)
+    r.state.confirm_adult(1)
+    r.save_player_name(1, "Саша")
+    e = r.select(1, "olga")
+    with r.scope(e):
+        store = RoleplaySceneStore(e.session_id)
+        store.start()
+        original = store.path.read_bytes()
+    bot = bot_for(r)
+    async def scenario():
+        start = Message("/start")
+        await bot._handle_catalog_update(update(start, 1, uid=1), None)
+        assert "Как тебя называть" in start.replies[0][0]
+        assert not r.state.is_adult(1) and not r.state.name_confirmed(1)
+        name = Message("Илья")
+        await bot._handle_catalog_update(update(name, 2, uid=1), None)
+        assert "18 лет" in name.replies[0][0]
+        catalog = Message(ADULT)
+        await bot._handle_catalog_update(update(catalog, 3, uid=1), None)
+        assert "каталог" in catalog.replies[0][0] and r.state.is_adult(1)
+        selected = Message(data='{"v":1,"character_id":"olga"}')
+        await bot._handle_catalog_update(update(selected, 4, uid=1), None)
+        assert selected.replies[0][1]["photo"] == portrait_jpeg("olga")
+        assert r.state.selected(1) == e and store.path.read_bytes() == original
+    asyncio.run(scenario())
 
 
 def test_name_change_blocks_stale_replay_and_delivery_across_heroines(tmp_path, settings, monkeypatch):

@@ -29,8 +29,9 @@ Only the catalogue config block changed; route/privacy/budgets were preserved.
 
 Owner acceptance: `/start` → name → 18+ → heroine → story, then exchange a few turns.
 Use `/characters` to switch and return, `/stories` for an independent episode,
-and `/pause` to stop initiative. After confirming a name in AIGirla it is reused;
-`/name` changes it for every heroine.
+and `/pause` to stop initiative. Every explicit `/start` asks for a name and 18+
+confirmation again, preserving existing stories. `/characters` opens the
+catalogue with the confirmed profile; `/name` changes it for every heroine.
 
 ## Portrait and name follow-up
 
@@ -40,7 +41,7 @@ WebP assets are encoded to JPEG in memory using the existing Pillow dependency;
 there is no generation call, external media host, new spend or image editing.
 An explicit story resume does not resend the portrait.
 
-Names imported from the previous bot require one explicit entry in AIGirla.
+Names imported from the previous bot require explicit entry and age confirmation in AIGirla.
 Confirmation persists in an additive SQLite table, preserving compatibility
 with the previous runtime. Initiative waits for confirmation and pauses during
 `/name`. A changed name discards queued replies for every heroine and prevents
@@ -48,7 +49,7 @@ replaying old saved replies until a new turn has been accepted; history itself
 is retained. Current v3 scene data no longer remigrates an explicitly chosen
 name such as Илья into a generic player label.
 
-Validation: 240 catalogue + 163 core/transport/outbound checks = 403 passing,
+Validation: 241 catalogue + 163 core/transport/outbound checks = 404 passing,
 run in isolated test processes because existing config monkeypatch fixtures
 interfere with runtime scopes when these files share a process.
 The offline installed-package smoke covers all twenty JPEG cards and a synthetic

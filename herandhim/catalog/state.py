@@ -81,6 +81,11 @@ class CatalogState:
         with self.connect() as db:
             db.execute("UPDATE catalog_players SET adult=1 WHERE user_id=?", (user_id,))
 
+    def begin_onboarding(self, user_id: int):
+        with self.connect() as db:
+            db.execute("UPDATE catalog_players SET adult=0 WHERE user_id=?", (user_id,))
+            db.execute("DELETE FROM catalog_name_confirmations WHERE user_id=?", (user_id,))
+
     def is_adult(self, user_id: int):
         with self.connect() as db:
             row = db.execute("SELECT adult FROM catalog_players WHERE user_id=?", (user_id,)).fetchone()
