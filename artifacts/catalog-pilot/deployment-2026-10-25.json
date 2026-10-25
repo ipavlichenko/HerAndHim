@@ -1,0 +1,188 @@
+{
+  "revision": "963dd9140f63011761a179489c5fc658a9c76f5b",
+  "image": "sha256:48ddf4c08d0bc00ca80b3d27b234cf432fc1405556b2380587aa3883664015ef",
+  "before": {
+    "id": "c08334d881cf936a778a58de2268fb4f6df08ad31a49109d2138fd983c10f4b1",
+    "image": "sha256:113a0e366ee71f15eea54c46a0885f8d2d2fe33fe10fa2397e20a2354ec4d306",
+    "started": "2026-10-25T14:13:48.580293473Z",
+    "restarts": 0,
+    "health": "healthy"
+  },
+  "rollback_image": "sha256:113a0e366ee71f15eea54c46a0885f8d2d2fe33fe10fa2397e20a2354ec4d306",
+  "previous_config": "/srv/sara/backups/aigirla-pre-963dd91-config.json",
+  "public_access": false,
+  "catalog_url": "",
+  "live_inference_calls": 0,
+  "telegram_messages": 0,
+  "backup": {
+    "archive": "sara-20261025T171112Z.tar.gz",
+    "createdAt": "20261025T171112Z",
+    "sha256": "db78fb30b8a2a984b8b0ecc73df7e17c3406a4a6ee16bbdb59b78a8dda714323",
+    "bytes": 2301018
+  },
+  "restore_verified": true,
+  "first_start": {
+    "id": "3a9dfb9383169186b7e0eaef786006f3a6344f4fbf3fdb3b771ebff72a2dee81",
+    "image": "sha256:48ddf4c08d0bc00ca80b3d27b234cf432fc1405556b2380587aa3883664015ef",
+    "started": "2026-10-25T17:11:13.726055082Z",
+    "restarts": 0,
+    "health": "healthy"
+  },
+  "controlled_restart": {
+    "id": "3a9dfb9383169186b7e0eaef786006f3a6344f4fbf3fdb3b771ebff72a2dee81",
+    "image": "sha256:48ddf4c08d0bc00ca80b3d27b234cf432fc1405556b2380587aa3883664015ef",
+    "started": "2026-10-25T17:11:45.735346332Z",
+    "restarts": 0,
+    "health": "healthy"
+  },
+  "config_only_catalog_changed": true,
+  "horror_unchanged": true,
+  "status": "PASS",
+  "checked_at": "2026-10-25T17:12:19.138972+00:00",
+  "telegram": {
+    "username": "sara_herandhim_bot",
+    "commands": [
+      "start",
+      "characters",
+      "stories",
+      "menu",
+      "hide",
+      "name",
+      "pause",
+      "resume"
+    ],
+    "webhook": false,
+    "display_name": "AIGirla"
+  },
+  "delivery_enabled": true,
+  "existing_cost_ledger_unchanged": true,
+  "catalog_players": 1,
+  "selection_required_at_launch": true,
+  "recent_error_markers": {
+    "Traceback": 0,
+    " ERROR ": 0,
+    "Conflict:": 0,
+    "Catalog turn failed": 0,
+    "Catalog initiative failed": 0
+  },
+  "postcheck_at": "2026-10-25T17:18:32.245685+00:00",
+  "images": [
+    {
+      "Containers": "N/A",
+      "CreatedAt": "2026-10-25 17:09:36 +0000 UTC",
+      "CreatedSince": "8 minutes ago",
+      "Digest": "<none>",
+      "ID": "48ddf4c08d0b",
+      "Repository": "herandhim-sara",
+      "SharedSize": "N/A",
+      "Size": "1GB",
+      "Tag": "aigirla-963dd91",
+      "UniqueSize": "N/A",
+      "VirtualSize": "1.001GB"
+    },
+    {
+      "Containers": "N/A",
+      "CreatedAt": "2026-10-25 17:09:36 +0000 UTC",
+      "CreatedSince": "8 minutes ago",
+      "Digest": "<none>",
+      "ID": "48ddf4c08d0b",
+      "Repository": "herandhim-sara",
+      "SharedSize": "N/A",
+      "Size": "1GB",
+      "Tag": "pilot",
+      "UniqueSize": "N/A",
+      "VirtualSize": "1.001GB"
+    },
+    {
+      "Containers": "N/A",
+      "CreatedAt": "2026-10-25 16:29:52 +0000 UTC",
+      "CreatedSince": "48 minutes ago",
+      "Digest": "<none>",
+      "ID": "4fdb1a5b9b75",
+      "Repository": "fazbear-horror",
+      "SharedSize": "N/A",
+      "Size": "993MB",
+      "Tag": "9ccd4689631503dd52ce0487f11620129f4e42bd",
+      "UniqueSize": "N/A",
+      "VirtualSize": "993.5MB"
+    },
+    {
+      "Containers": "N/A",
+      "CreatedAt": "2026-10-25 14:12:25 +0000 UTC",
+      "CreatedSince": "3 hours ago",
+      "Digest": "<none>",
+      "ID": "113a0e366ee7",
+      "Repository": "herandhim-sara",
+      "SharedSize": "N/A",
+      "Size": "991MB",
+      "Tag": "rollback-pre-aigirla-963dd91",
+      "UniqueSize": "N/A",
+      "VirtualSize": "991.1MB"
+    },
+    {
+      "Containers": "N/A",
+      "CreatedAt": "2026-10-25 13:24:45 +0000 UTC",
+      "CreatedSince": "4 hours ago",
+      "Digest": "<none>",
+      "ID": "7172f3587c70",
+      "Repository": "herandhim-sara",
+      "SharedSize": "N/A",
+      "Size": "989MB",
+      "Tag": "rollback-pre-russian-3f4e9da",
+      "UniqueSize": "N/A",
+      "VirtualSize": "988.8MB"
+    },
+    {
+      "Containers": "N/A",
+      "CreatedAt": "2026-10-25 12:02:55 +0000 UTC",
+      "CreatedSince": "5 hours ago",
+      "Digest": "<none>",
+      "ID": "33ee0112cc83",
+      "Repository": "herandhim-sara",
+      "SharedSize": "N/A",
+      "Size": "987MB",
+      "Tag": "rollback-pre-compact-da94b9e",
+      "UniqueSize": "N/A",
+      "VirtualSize": "986.6MB"
+    },
+    {
+      "Containers": "N/A",
+      "CreatedAt": "2026-10-21 01:10:54 +0000 UTC",
+      "CreatedSince": "4 days ago",
+      "Digest": "<none>",
+      "ID": "a33c10a97f11",
+      "Repository": "python",
+      "SharedSize": "N/A",
+      "Size": "119MB",
+      "Tag": "3.12-slim",
+      "UniqueSize": "N/A",
+      "VirtualSize": "119.4MB"
+    }
+  ],
+  "container_inventory": [
+    "sara-pilot herandhim-sara:pilot Up 6 minutes (healthy)",
+    "fazbear-horror-pilot 4fdb1a5b9b75 Up 31 minutes (healthy)"
+  ],
+  "local_verification": {
+    "catalog_tests": 234,
+    "other_targeted_tests": 155,
+    "total_passed": 389,
+    "ruff": "PASS",
+    "diff_check": "PASS",
+    "installed_network_disabled_smoke": "PASS"
+  },
+  "preflight": {
+    "checked_date": "2026-10-25",
+    "mistralai/mistral-large-4-0": "mistral/eu: ZDR eligible, available",
+    "anthropic/claude-haiku-5.5": "google-vertex/europe: ZDR eligible, available",
+    "key_limit_usd": 2,
+    "key_remaining_usd": 1.155484636,
+    "key_expires_at": "2026-10-31T19:32:46.508Z",
+    "paid_calls": 0
+  },
+  "retention": {
+    "policy": "current + two rollbacks + all containers + Python + required ancestors",
+    "result": "older image retained as required ancestor of current/rollback/container image",
+    "uploaded_temporary_archive_removed": true
+  }
+}
