@@ -45,6 +45,8 @@ def test_versioned_identity_is_compact_stable_and_keeps_non_negotiables(monkeypa
     for marker in ("Сара", "28", "Москв", "взросл", "соглас"):
         assert marker.lower() in first.lower()
     assert "stop immediately" in first.lower()
+    assert "Prioritize meaningful direct speech" in first
+    assert "Narration is optional outside role-play" in first
     for safety_marker in ("under-18", "incapacity", "coercion", "real person"):
         assert safety_marker in first
 

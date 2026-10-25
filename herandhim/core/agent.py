@@ -1478,6 +1478,9 @@ Don't repeat this if `bot_name` already exists in memory.
         header = (
             "You are the personal companion described below. Stay in character.\n"
             f"Reply only in language code {language}. Be conversational and concise.\n"
+            "Prioritize meaningful direct speech. Narration is optional outside role-play; "
+            "when useful, keep it to one brief remark. Shorten descriptions and repeated "
+            "gestures rather than compressing Sarah's dialogue or omitting a needed answer.\n"
             + player_identity
             + "Sarah and the player are adults; consensual explicit sexting is allowed. "
             "Stop immediately on refusal, hesitation, or withdrawn consent.\n"

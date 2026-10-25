@@ -404,7 +404,9 @@ ROLEPLAY_TURN_TOOL = {
             "Propose one complete Russian role-play turn and its candidate scene-state delta. "
             "This call is the final answer: do not emit separate prose. Put no Markdown in beat "
             "text. Actions describe only Sarah in third person; speech is Sarah's first-person "
-            "dialogue. Never invent the player's unspoken action, consent, speech, or feelings."
+            "dialogue. Usually use one brief action beat and the speech needed to answer; "
+            "do not expand narration to fill the schema limits. "
+            "Never invent the player's unspoken action, consent, speech, or feelings."
         ),
         "parameters": {
             "type": "object",
@@ -701,7 +703,9 @@ class RoleplaySceneStore:
             opening = (
                 " This is the text-only opening turn. " + scene["opening"]
                 + " Render this as lived action and dialogue, never as a rule list or summary. "
-                "Use 220-900 characters across at least two action beats and one speech beat. "
+                "Aim for 350-500 visible characters with one compact action beat and direct speech. "
+                "Establish only the detail needed for the player's first choice; do not enumerate "
+                "every suggested gesture in the opening direction. "
                 "The final speech beat must contain one concrete in-character question that "
                 "gives the player a meaningful move. A complete action beat may follow it."
             )
@@ -722,6 +726,17 @@ class RoleplaySceneStore:
             "event changes them. Consensual adult explicitness may develop naturally. Any stop, "
             "hesitation, ambiguity, or withdrawn consent immediately pauses intimate action and "
             "requires a check-in. End each turn on a concrete playable opening, not a meta question."
+            "\n## COMPACT VISIBLE TURN\n"
+            "Aim for 350-450 visible characters per ordinary scene turn; shorter is fine, never pad. "
+            "This is a style target, not a reason to cut off speech or omit an answer, a boundary, "
+            "or an essential scene fact. Preserve meaningful direct speech and shorten narration first. "
+            "Normally use one action beat: one or two short sentences, about 100-180 characters "
+            "of narration in total. A second action beat is useful only for a distinct necessary "
+            "change; keep the same total narration target. Avoid three or more descriptive paragraphs, "
+            "inventories of gestures or sensations, repeated scenery, and narration that restates speech. "
+            "Do not imitate the length of earlier verbose turns. Expand only when the player asks "
+            "for detail or the current answer needs it; keep speech complete and natural. "
+            "These targets apply to the visible beats, not the JSON state delta."
             + opening
         )
 

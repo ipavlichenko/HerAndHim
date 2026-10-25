@@ -126,6 +126,39 @@ def test_typed_beats_reject_overlong_text_instead_of_silently_truncating():
         decode_roleplay_turn_proposal(json.dumps(payload, ensure_ascii=False))
 
 
+def test_concise_style_target_never_truncates_needed_speech_or_drops_scene_facts(tmp_path):
+    agent = _secured_agent(tmp_path)
+    agent.roleplay.start()
+    before = agent.roleplay.load()
+    speech = " ".join([
+        "Мне важно договориться, что ты можешь остановить разговор в любой момент.",
+        "Я хочу сначала ответить на твой вопрос, а потом спокойно решить, как нам провести вечер.",
+        "Дорога пока закрыта, но в доме есть две комнаты, и ты можешь выбрать ту, где тебе уютнее.",
+        "Если предпочитаешь побыть один, я уважаю это и останусь в гостиной с книгой.",
+        "А если захочется поговорить, можем обсудить поездку, которую ты давно планировал.",
+        "Не обязательно принимать решение прямо сейчас: у нас есть время подумать.",
+    ])
+    assert len(speech) > 450
+    call = _tool_call("propose_roleplay_turn", {
+        "state_delta": {"phase": "choice", "last_beat": "Сара ждёт ответа", "consent_state": "check_in"},
+        "beats": [
+            {"type": "action", "text": "Сара откладывает книгу."},
+            {"type": "speech", "text": speech},
+        ],
+    })
+
+    rendered, candidate, count = agent._accept_roleplay_proposal(
+        _Message(tool_calls=[call]), opening=True,
+    )
+
+    assert rendered == "*Сара откладывает книгу.*\n\n" + speech
+    assert candidate["consent_state"] == "check_in"
+    assert candidate["established_facts"] == before["established_facts"]
+    assert candidate["opening_pending"] is False
+    assert count == 2
+    assert agent.roleplay.load() == before
+
+
 def test_scene_start_and_explicit_exit_are_distinct_from_in_scene_stop():
     assert is_roleplay_start(ROLEPLAY_START_REQUEST)
     assert roleplay_scenario_id(ROLEPLAY_START_REQUEST) == ROLEPLAY_SCENE_ID
@@ -449,8 +482,9 @@ def _proposal_call(*, opening=False, last_beat="Илья ответил", markdo
     })
 
 
+@pytest.mark.parametrize("proactive", [False, True])
 def test_active_turn_uses_one_typed_call_then_commits_candidate_state(
-    tmp_path, monkeypatch,
+    tmp_path, monkeypatch, proactive,
 ):
     from herandhim.core import agent as agent_module
     from herandhim.core import quota
@@ -477,7 +511,12 @@ def test_active_turn_uses_one_typed_call_then_commits_candidate_state(
     agent.roleplay.start()
     agent.roleplay.mark_opened()
 
-    reply = agent.chat("Я захожу и закрываю дверь")
+    if proactive:
+        from herandhim.scheduler.proactive import _build_roleplay_continuation_prompt
+        user_input = _build_roleplay_continuation_prompt()
+    else:
+        user_input = "Я захожу и закрываю дверь"
+    reply = agent.chat(user_input)
 
     assert reply.startswith("Сара остаётся") is False
     assert reply.startswith("*Сара остаётся")
@@ -485,6 +524,11 @@ def test_active_turn_uses_one_typed_call_then_commits_candidate_state(
     assert len(dialogue_calls) == 1
     assert dialogue_calls[0]["tool_choice"]["function"]["name"] == "propose_roleplay_turn"
     assert dialogue_calls[0]["max_tokens"] == 1_400
+    prompt = "\n".join(row["content"] for row in dialogue_calls[0]["messages"]
+                       if row["role"] == "system")
+    assert "350-450 visible characters" in prompt
+    assert "shorten narration first" in prompt
+    assert "Do not imitate the length of earlier verbose turns" in prompt
     assert agent.roleplay.load()["last_beat"] == sensitive_beat
     assert sensitive_beat not in json.dumps(trace, ensure_ascii=False)
     proposal_trace = next(row for row in trace if row.get("event") == "roleplay_proposal")
@@ -677,7 +721,7 @@ def test_start_transaction_is_one_typed_call_without_photo(tmp_path, monkeypatch
     monkeypatch.setattr(quota, "check_messages", lambda: None)
     monkeypatch.setattr(quota, "record_message", lambda: None)
     provider = _Provider([
-        _Message(tool_calls=[_proposal_call(opening=True)]),
+        _Message(tool_calls=[_proposal_call()]),
     ])
     agent = Agent(
         provider,
@@ -699,6 +743,11 @@ def test_start_transaction_is_one_typed_call_without_photo(tmp_path, monkeypatch
         "propose_roleplay_turn",
     ]
     assert "какую дистанцию" in reply
+    assert reply.count("\n\n") == 1  # One action and intact speech also suffice for an opening.
+    prompt = "\n".join(row["content"] for row in dialogue_calls[0]["messages"]
+                       if row["role"] == "system")
+    assert "350-500 visible characters" in prompt
+    assert "at least two action beats" not in prompt
     assert agent.roleplay.load()["opening_pending"] is False
 
 
