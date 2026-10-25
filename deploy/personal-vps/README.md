@@ -39,6 +39,29 @@ values must never be passed on the command line or saved in the source tree.
 kill/resume switch, the durable proactive-delivery switch, and backup/restore
 verification. It never prints configuration or secrets.
 
+## Image retention after a successful deployment
+
+The deployment operator must clean up obsolete Sarah images after the new
+release has passed health, restart, and transport checks. This is part of each
+deployment; a separate owner approval is not required.
+
+- Keep the running image and the two most recent **successfully deployed**
+  rollback images. Resolve and record their full image IDs before cleanup;
+  candidate tags or creation timestamps do not prove a successful release.
+- Protect every image referenced by any container and keep the Python base image.
+- Inventory obsolete `herandhim-sara` tags and untagged Sarah runtime/builder
+  images. Confirm ownership from image configuration/build history and review
+  the exact deletion list before applying it.
+- Remove only those image references using `docker image rm` without `--force`.
+  Never use broad system/volume pruning or delete data/backups during image
+  retention. Defer cleanup while another build or deployment is active.
+- Verify the running container identity, health, both rollback image IDs, and
+  disk space afterwards. Record the result in the project handoff.
+
+This is an operator deployment step, not a scheduled background cleanup job.
+Removed old artifacts require a rebuild from their source revision if needed;
+without pinned dependencies such a rebuild may not be byte-identical.
+
 For private dashboard access:
 
 ```text
