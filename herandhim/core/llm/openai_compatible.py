@@ -18,6 +18,7 @@ from openai import OpenAI
 
 from ..outbound.costs import CostLedger
 from ..outbound.envelopes import prepare_messages
+from ..outbound.failures import classify_failure
 from ..outbound.images import normalize_message_images
 from ..outbound.policy import OutboundPolicy, PolicyError
 from ..outbound.redaction import Redactor
@@ -153,8 +154,11 @@ class OpenAICompatibleProvider(LLMProvider):
     ) -> Any:
         if self.outbound_policy is not None:
             reservation_id: str | None = None
+            request_id = uuid4().hex
+            started = time.monotonic()
             try:
-                req = self._secured_request(messages, tools, tool_choice, purpose, kwargs)
+                req = self._secured_request(messages, tools, tool_choice, purpose, kwargs,
+                                            trace_request_id=request_id)
                 policy = self.outbound_policy.for_purpose(purpose)
                 assert self._cost_ledger is not None
                 reservation_id = self._cost_ledger.reserve(
@@ -162,31 +166,20 @@ class OpenAICompatibleProvider(LLMProvider):
                     policy.max_cost_usd_per_call,
                     policy.max_cost_usd_per_day,
                 )
-                started = time.monotonic()
                 resp = self.client.chat.completions.create(**req)
             except PolicyError as exc:
-                self._trace_reject(purpose, str(exc))
+                self._trace_reject(purpose, str(exc), request_id=request_id)
                 raise
             except Exception as exc:
-                status = getattr(exc, "status_code", None)
-                error_code = (
-                    "provider_rate_limited" if status == 429
-                    else "provider_request_failed"
-                )
-                self._trace_transport_failure(
-                    purpose,
-                    error_code=error_code,
-                    http_status=status if isinstance(status, int) else None,
-                )
-                raise PolicyError(error_code) from None
+                raise self._transport_error(exc, purpose, request_id, started) from None
             _promote_reasoning_to_content(resp)
             actual_cost = self._reported_cost(resp)
             if actual_cost is not None and reservation_id is not None:
                 self._cost_ledger.reconcile(reservation_id, actual_cost)
                 if actual_cost > policy.max_cost_usd_per_call + 1e-12:
-                    self._trace_success(purpose, resp, started)
+                    self._trace_success(purpose, resp, started, request_id=request_id)
                     raise PolicyError("provider_cost_cap_exceeded")
-            self._trace_success(purpose, resp, started)
+            self._trace_success(purpose, resp, started, request_id=request_id)
             if not _has_visible_output(resp):
                 raise PolicyError("provider_empty_response")
             return resp
@@ -214,8 +207,11 @@ class OpenAICompatibleProvider(LLMProvider):
         """Stream OpenAI-compatible responses, yielding text deltas."""
         if self.outbound_policy is not None:
             reservation_id: str | None = None
+            request_id = uuid4().hex
+            started = time.monotonic()
             try:
-                req = self._secured_request(messages, tools, tool_choice, purpose, kwargs)
+                req = self._secured_request(messages, tools, tool_choice, purpose, kwargs,
+                                            trace_request_id=request_id)
                 policy = self.outbound_policy.for_purpose(purpose)
                 assert self._cost_ledger is not None
                 reservation_id = self._cost_ledger.reserve(
@@ -226,7 +222,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 req["stream"] = True
                 req["stream_options"] = {"include_usage": True}
             except PolicyError as exc:
-                self._trace_reject(purpose, str(exc))
+                self._trace_reject(purpose, str(exc), request_id=request_id)
                 raise
         else:
             req = {
@@ -285,10 +281,9 @@ class OpenAICompatibleProvider(LLMProvider):
                                 tool_calls_acc[idx]["name"] = tc_delta.function.name
                             if tc_delta.function.arguments:
                                 tool_calls_acc[idx]["args"] += tc_delta.function.arguments
-        except Exception:
+        except Exception as exc:
             if self.outbound_policy is not None:
-                self._trace_transport_failure(purpose)
-                raise PolicyError("provider_request_failed") from None
+                raise self._transport_error(exc, purpose, request_id, started) from None
             raise
         if self.outbound_policy is not None:
             if actual_cost is not None and reservation_id is not None:
@@ -296,6 +291,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 if actual_cost > policy.max_cost_usd_per_call + 1e-12:
                     raise PolicyError("provider_cost_cap_exceeded")
             self._trace.write({
+                "request_id": request_id,
                 "purpose": str(getattr(purpose, "value", purpose)),
                 "policy_version": self.outbound_policy.version,
                 "budget_decision": "allowed",
@@ -326,8 +322,9 @@ class OpenAICompatibleProvider(LLMProvider):
             ))
         ])
 
-    def _trace_reject(self, purpose: object, reason: str) -> None:
+    def _trace_reject(self, purpose: object, reason: str, *, request_id: str) -> None:
         self._trace.write({
+            "request_id": request_id,
             "purpose": str(getattr(purpose, "value", purpose) or "missing"),
             "policy_version": self.outbound_policy.version if self.outbound_policy else 0,
             "budget_decision": "rejected",
@@ -343,30 +340,29 @@ class OpenAICompatibleProvider(LLMProvider):
             return float(value)
         return None
 
-    def _trace_transport_failure(
-        self,
-        purpose: object,
-        *,
-        error_code: str = "provider_request_failed",
-        http_status: int | None = None,
-    ) -> None:
+    def _transport_error(self, exc: Exception, purpose: object,
+                         request_id: str, started: float) -> PolicyError:
+        details = classify_failure(exc)
         event = {
+            "request_id": request_id,
+            "latency_ms": max(0, int((time.monotonic() - started) * 1000)),
             "purpose": str(getattr(purpose, "value", purpose) or "missing"),
             "policy_version": self.outbound_policy.version if self.outbound_policy else 0,
             "budget_decision": "allowed",
-            "error_code": error_code,
+            **details,
             "retry_count": 0,
         }
-        if http_status is not None:
-            event["http_status"] = http_status
         self._trace.write(event)
+        return PolicyError(f"{details['error_code']}; request_id={request_id}")
 
-    def _trace_success(self, purpose: object, response: Any, started: float) -> None:
+    def _trace_success(self, purpose: object, response: Any, started: float,
+                       *, request_id: str) -> None:
         usage = getattr(response, "usage", None)
         choices = getattr(response, "choices", None) or []
         dumped = response.model_dump() if hasattr(response, "model_dump") else {}
         dumped_usage = dumped.get("usage") or {}
         event = {
+            "request_id": request_id,
             "purpose": str(getattr(purpose, "value", purpose)),
             "policy_version": self.outbound_policy.version if self.outbound_policy else 0,
             "budget_decision": "allowed",
@@ -388,6 +384,8 @@ class OpenAICompatibleProvider(LLMProvider):
         tool_choice: Any,
         purpose: OutboundPurpose | str | None,
         kwargs: dict[str, Any],
+        *,
+        trace_request_id: str | None = None,
     ) -> dict[str, Any]:
         """Build an immutable OpenRouter request or reject it before I/O."""
         assert self.outbound_policy is not None
@@ -444,6 +442,7 @@ class OpenAICompatibleProvider(LLMProvider):
             request["tools"] = clean_tools
             request["tool_choice"] = tool_choice
         self._trace.write({
+            "request_id": trace_request_id or uuid4().hex,
             "purpose": policy.purpose.value,
             "policy_version": self.outbound_policy.version,
             "transport": "chat_completions",

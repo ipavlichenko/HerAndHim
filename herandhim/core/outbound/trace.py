@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,7 @@ class OutboundTrace:
             raise ValueError("outbound retry_count must be zero")
         if self.path is None:
             return
+        event = {"timestamp": datetime.now(UTC).isoformat(timespec="milliseconds"), **event}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")

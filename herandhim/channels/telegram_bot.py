@@ -86,7 +86,7 @@ _PHOTO_FAILURE_TEXT = (
 )
 _VOICE_FAILURE_TEXT = "I couldn't safely process that voice note. Please try a shorter recording."
 _VOICE_EMPTY_TEXT = "I couldn't recognise speech in that voice note."
-_MODEL_FAILURE_TEXT = "Не получилось ответить. Попробуйте отправить сообщение позже."
+_MODEL_FAILURE_TEXT = "Не получилось ответить из-за технической ошибки. Автоматического повтора не было."
 _RATE_LIMIT_FAILURE_TEXT = (
     "Провайдер временно ограничил запросы. "
     "Повторите ход через минуту."
@@ -168,11 +168,43 @@ def _expand_roleplay_request(text: str) -> str:
 
 def _model_failure_text(raw_response: str) -> str:
     """Map internal policy failures to truthful, content-free Russian UX."""
-    if raw_response.startswith("Error: ") and "daily_cost_cap_exceeded" in raw_response:
-        return _COST_CAP_FAILURE_TEXT
-    if raw_response.startswith("Error: ") and "provider_rate_limited" in raw_response:
-        return _RATE_LIMIT_FAILURE_TEXT
-    return _MODEL_FAILURE_TEXT
+    match = re.fullmatch(r"Error: ([a-z_]+)(?:; request_id=([a-f0-9]{32}))?", raw_response)
+    if not match:
+        return _MODEL_FAILURE_TEXT
+    code, request_id = match.groups()
+    text = {
+        "daily_cost_cap_exceeded": _COST_CAP_FAILURE_TEXT,
+        "provider_rate_limited": _RATE_LIMIT_FAILURE_TEXT,
+        "provider_timeout": (
+            "Не удалось дождаться ответа модели за отведённое время. "
+            "Автоматического повтора не было; можно повторить ход вручную."
+        ),
+        "provider_connection_failed": (
+            "Не удалось связаться с сервисом модели: ошибка соединения. "
+            "Автоматического повтора не было; попробуйте повторить ход позже."
+        ),
+        "provider_unavailable": (
+            "Сервис модели вернул серверную ошибку. "
+            "Автоматического повтора не было; попробуйте повторить ход позже."
+        ),
+        "provider_auth_failed": (
+            "Сервис модели не принял API-ключ. Нужна проверка настройки бота; "
+            "повторная отправка сообщения сейчас не поможет."
+        ),
+        "provider_access_denied": (
+            "Сервис модели отказал в доступе. Нужна проверка настройки бота; "
+            "повторная отправка сообщения сейчас не поможет."
+        ),
+        "provider_payment_required": (
+            "Сервис модели отклонил запрос по оплате или лимиту API. "
+            "Нужна проверка аккаунта; повторная отправка сейчас не поможет."
+        ),
+        "provider_request_rejected": (
+            "Сервис модели отклонил запрос. Причину нужно проверить по журналу; "
+            "повторять тот же ход подряд не нужно."
+        ),
+    }.get(code, _MODEL_FAILURE_TEXT)
+    return text + (f"\nКод: {request_id[:12]}" if request_id else "")
 
 
 def _roleplay_to_html(text: str) -> str:
