@@ -98,8 +98,8 @@ delivery settings after restart.
 - Per-user locking is within one bot process. Do not run several polling workers.
 - Only the current episode per heroine is selectable; old independent episode
   files are retained. Retention/deletion UX is not in this increment.
-- Domain/name is still being selected. Registry absence is not a price quote,
-  a purchase, or a trademark clearance.
+- The name AIGirla and its wordmark/star are approved. The domain is not yet
+  registered. Registry absence is not a price quote, a purchase, or trademark clearance.
 - Private chat means isolated from other users, not end-to-end encrypted or
   anonymous: Telegram, the service operator and the AI route process the data.
 
