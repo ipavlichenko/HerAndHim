@@ -456,13 +456,23 @@ class TelegramBot:
             text = text.replace(f"@{self._bot_username}", "").strip()
         return text
 
+    async def _close_roleplay_for_menu(self, sid: str):
+        """Atomically leave scene reality before exposing scenario navigation."""
+        agent = self._sm.get_or_create(sid)
+        async with self._sm.acquire(sid):
+            roleplay = getattr(agent, "roleplay", None)
+            if roleplay is not None:
+                roleplay.end()
+            self._transport.discard_pending_reason(sid, "roleplay")
+        return agent
+
     # ── Command handlers ──────────────────────────────────────────────────────
 
     async def _cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._check_access(update, context):
             return
         sid = self._session_id(update.effective_chat.id)
-        agent = self._sm.get_or_create(sid)
+        agent = await self._close_roleplay_for_menu(sid)
         player_name = self._transport.player_name(sid)
         if not player_name:
             self._transport.begin_player_name_onboarding(sid)
@@ -600,11 +610,8 @@ class TelegramBot:
             )
             return
         if user_text == ROLEPLAY_EXIT_BUTTON_TEXT:
-            agent = self._sm.get_or_create(sid)
+            agent = await self._close_roleplay_for_menu(sid)
             _set_agent_player_name(agent, self._transport.player_name(sid))
-            roleplay = getattr(agent, "roleplay", None)
-            if roleplay is not None:
-                roleplay.end()
             await update.message.reply_text(
                 "Сцена завершена. Выберите следующий сценарий.",
                 reply_markup=_scenario_menu_keyboard(),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 from herandhim.channels.telegram_bot import (
@@ -48,10 +49,13 @@ class _Memory:
 
 class _Roleplay:
     def __init__(self) -> None:
-        self.ended = False
+        self.ended = True
 
     def end(self) -> None:
         self.ended = True
+
+    def is_active(self) -> bool:
+        return not self.ended
 
 
 class _Agent:
@@ -80,6 +84,10 @@ class _SessionManager:
     def get_or_create(self, _sid: str):
         return self.agent
 
+    @asynccontextmanager
+    async def acquire(self, _sid: str):
+        yield
+
     def reset(self, sid: str) -> None:
         self.reset_ids.append(sid)
 
@@ -91,6 +99,7 @@ class _Transport:
     def __init__(self, player_name: str = "Алекс") -> None:
         self.name = player_name
         self.awaiting = False
+        self.discarded_reasons: list[tuple[str, str]] = []
 
     def player_name(self, _sid: str) -> str:
         return self.name
@@ -108,6 +117,10 @@ class _Transport:
     @staticmethod
     def accept_update(*_args) -> bool:
         return True
+
+    def discard_pending_reason(self, sid: str, reason: str) -> int:
+        self.discarded_reasons.append((sid, reason))
+        return 0
 
 
 def _fixture():
@@ -189,10 +202,13 @@ def test_rate_limit_message_explains_when_retry_is_useful():
 
 
 def test_start_attaches_ten_scenario_buttons_without_photo_button():
-    bot, _manager, update, context, message = _fixture()
+    bot, manager, update, context, message = _fixture()
+    manager.agent.roleplay.ended = False
 
     asyncio.run(bot._cmd_start(update, context))
 
+    assert manager.agent.roleplay.ended is True
+    assert bot._transport.discarded_reasons == [("telegram:42", "roleplay")]
     markup = message.reply_kwargs[-1]["reply_markup"]
     assert markup.is_persistent is True
     labels = [button.text for row in markup.keyboard for button in row]
@@ -204,11 +220,14 @@ def test_start_attaches_ten_scenario_buttons_without_photo_button():
 def test_first_start_asks_name_before_showing_scenarios():
     bot, _manager, update, context, message = _fixture()
     bot._transport = _Transport(player_name="")
+    _manager.agent.roleplay.ended = False
 
     asyncio.run(bot._cmd_start(update, context))
 
     assert message.replies == [_PLAYER_NAME_PROMPT]
     assert bot._transport.awaiting is True
+    assert _manager.agent.roleplay.ended is True
+    assert bot._transport.discarded_reasons == [("telegram:42", "roleplay")]
     assert message.reply_kwargs[-1]["reply_markup"].__class__.__name__ == "ReplyKeyboardRemove"
 
 
@@ -259,6 +278,7 @@ def test_scene_and_exit_keyboards_are_separate():
 
 def test_exit_button_ends_scene_and_returns_to_scenario_menu():
     bot, manager, update, context, _message = _fixture()
+    manager.agent.roleplay.ended = False
     message = _Message(ROLEPLAY_EXIT_BUTTON_TEXT)
     update.message = message
     update.update_id = 77
