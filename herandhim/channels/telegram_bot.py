@@ -134,22 +134,26 @@ def _set_agent_player_name(agent, name: str) -> None:
         roleplay_setter(name)
 
 
+_HIDE_MENU_BUTTON_TEXT = "⌨️ Скрыть меню"
+
+
 def _scenario_menu_keyboard() -> ReplyKeyboardMarkup:
     buttons = [KeyboardButton(row["label"]) for row in ROLEPLAY_SCENARIOS]
     rows = [buttons[index:index + 2] for index in range(0, len(buttons), 2)]
+    rows.append([KeyboardButton(_HIDE_MENU_BUTTON_TEXT)])
     return ReplyKeyboardMarkup(
         rows,
         resize_keyboard=True,
-        is_persistent=True,
+        is_persistent=False,
         input_field_placeholder="Выберите сценарий…",
     )
 
 
 def _roleplay_exit_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        [[KeyboardButton(ROLEPLAY_EXIT_BUTTON_TEXT)]],
+        [[KeyboardButton(ROLEPLAY_EXIT_BUTTON_TEXT)], [KeyboardButton(_HIDE_MENU_BUTTON_TEXT)]],
         resize_keyboard=True,
-        is_persistent=True,
+        is_persistent=False,
         input_field_placeholder="Ваш ход…",
     )
 
@@ -183,7 +187,9 @@ def _roleplay_to_html(text: str) -> str:
     return "".join(rendered)
 
 
-async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) -> bool:
+async def _send_companion_text(
+    bot, chat_id: int, text: str, *, roleplay: bool, keyboard_hidden: bool = False,
+) -> bool:
     """Deliver one logical companion reply without conversational burst splitting.
 
     Scene state selects the keyboard, never the number of messages. A completed
@@ -194,6 +200,8 @@ async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) 
     sent = False
     for chunk in _split_message(text):
         markup = {"reply_markup": _roleplay_exit_keyboard()} if roleplay else {}
+        if keyboard_hidden:
+            markup = {"reply_markup": ReplyKeyboardRemove()}
         await bot.send_message(
             chat_id=chat_id,
             text=_roleplay_to_html(chunk),
@@ -258,17 +266,9 @@ class TelegramBot:
         if self._app is None:
             logger.warning("[Telegram] send_message called before bot is running")
             return
-        if roleplay:
-            for chunk in _split_message(text):
-                await self._app.bot.send_message(
-                    chat_id=chat_id,
-                    text=_roleplay_to_html(chunk),
-                    parse_mode="HTML",
-                    reply_markup=_roleplay_exit_keyboard(),
-                )
-            return
-        await self._app.bot.send_message(
-            chat_id=chat_id, text=_roleplay_to_html(text), parse_mode="HTML",
+        await _send_companion_text(
+            self._app.bot, chat_id, text, roleplay=roleplay,
+            keyboard_hidden=self._transport.keyboard_hidden(self._session_id(chat_id)),
         )
 
     async def send_photo(
@@ -456,9 +456,38 @@ class TelegramBot:
             if roleplay is not None:
                 roleplay.end()
             self._transport.discard_pending_reason(sid, "roleplay")
+            self._transport.set_keyboard_hidden(sid, False)
         return agent
 
     # ── Command handlers ──────────────────────────────────────────────────────
+
+    async def _cmd_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show the selector without ending the current scene or changing history."""
+        if not await self._check_access(update, context):
+            return
+        sid = self._session_id(update.effective_chat.id)
+        async with self._sm.acquire(sid):
+            self._transport.set_keyboard_hidden(sid, False)
+            if not self._transport.player_name(sid) or self._transport.awaiting_player_name(sid):
+                self._transport.begin_player_name_onboarding(sid)
+                await update.message.reply_text(_PLAYER_NAME_PROMPT, reply_markup=ReplyKeyboardRemove())
+                return
+            await update.message.reply_text(
+                "Выбери сценарий. Если сцена уже идёт, она сохранится до выбора другой.\n"
+                "Убрать клавиатуру: «Скрыть меню» или /hide.",
+                reply_markup=_scenario_menu_keyboard(),
+            )
+
+    async def _cmd_hide(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._check_access(update, context):
+            return
+        sid = self._session_id(update.effective_chat.id)
+        async with self._sm.acquire(sid):
+            self._transport.set_keyboard_hidden(sid, True)
+            await update.message.reply_text(
+                "Меню скрыто. Открыть сценарии: /menu.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
 
     async def _cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._check_access(update, context):
@@ -481,6 +510,8 @@ class TelegramBot:
             "Во время игры кнопка «Выйти в меню сценариев» завершает текущую сцену.\n\n"
             "Команды:\n"
             "  /start          — показать эту справку\n"
+            "  /menu           — открыть сценарии, сохранив текущую сцену\n"
+            "  /hide           — скрыть меню\n"
             "  /clear          — очистить историю, сохранив память\n"
             "  /reset          — то же, что /clear\n"
             "  /status         — показать состояние сессии\n"
@@ -579,6 +610,9 @@ class TelegramBot:
 
         user_text = (update.message.text or update.message.caption or "").strip()
         user_text = self._strip_mention(user_text)
+        if user_text == _HIDE_MENU_BUTTON_TEXT:
+            await self._cmd_hide(update, context)
+            return
         if self._transport.awaiting_player_name(sid):
             player_name = _normalize_player_name(user_text)
             if player_name is None:
@@ -595,9 +629,11 @@ class TelegramBot:
             active_scene = bool(callable(is_active) and is_active())
             await update.message.reply_text(
                 f"Приятно познакомиться, {player_name}. "
-                + ("Продолжим текущую сцену." if active_scene else "Выбери сценарий."),
+                + ("Продолжим текущую сцену." if active_scene else "Выбери сценарий.")
+                + (" Открыть меню: /menu." if self._transport.keyboard_hidden(sid) else ""),
                 reply_markup=(
-                    _roleplay_exit_keyboard() if active_scene else _scenario_menu_keyboard()
+                    ReplyKeyboardRemove() if self._transport.keyboard_hidden(sid)
+                    else _roleplay_exit_keyboard() if active_scene else _scenario_menu_keyboard()
                 ),
             )
             return
@@ -759,6 +795,7 @@ class TelegramBot:
                                     chat_id,
                                     text,
                                     roleplay=bool(roleplay and roleplay.is_active()),
+                                    keyboard_hidden=self._transport.keyboard_hidden(sid),
                                 )
                             else:
                                 for chunk in _split_message(text):
@@ -1059,6 +1096,8 @@ class TelegramBot:
 
     _BOT_COMMANDS = [
         BotCommand("start",       "Показать справку"),
+        BotCommand("menu",        "🎭 Открыть сценарии"),
+        BotCommand("hide",        "Скрыть меню"),
         BotCommand("clear",       "🧹 Очистить историю, сохранив память"),
         BotCommand("reset",       "То же, что /clear"),
         BotCommand("status",      "Показать состояние сессии"),
@@ -1071,6 +1110,8 @@ class TelegramBot:
     def build_application(self) -> Application:
         app = Application.builder().token(self._token).build()
         app.add_handler(CommandHandler("start", self._cmd_start))
+        app.add_handler(CommandHandler("menu", self._cmd_menu))
+        app.add_handler(CommandHandler("hide", self._cmd_hide))
         app.add_handler(CommandHandler("reset", self._cmd_reset))
         app.add_handler(CommandHandler("clear", self._cmd_reset))  # alias
         app.add_handler(CommandHandler("status", self._cmd_status))

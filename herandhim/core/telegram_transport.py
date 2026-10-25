@@ -133,6 +133,10 @@ class TelegramTransportStore:
                         CHECK(awaiting_name IN (0, 1)),
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS keyboard_preferences (
+                    session_id TEXT PRIMARY KEY,
+                    hidden INTEGER NOT NULL DEFAULT 0 CHECK(hidden IN (0, 1))
+                );
                 """
             )
             delivery_columns = {
@@ -153,6 +157,22 @@ class TelegramTransportStore:
                 conn.execute(
                     "ALTER TABLE media_deliveries ADD COLUMN kind TEXT NOT NULL DEFAULT 'photo'"
                 )
+
+    def keyboard_hidden(self, session_id: str) -> bool:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT hidden FROM keyboard_preferences WHERE session_id=?",
+                (session_id,),
+            ).fetchone()
+            return bool(row and row["hidden"])
+
+    def set_keyboard_hidden(self, session_id: str, hidden: bool) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "INSERT INTO keyboard_preferences(session_id, hidden) VALUES (?, ?) "
+                "ON CONFLICT(session_id) DO UPDATE SET hidden=excluded.hidden",
+                (session_id, int(hidden)),
+            )
 
     def player_name(self, session_id: str) -> str:
         """Return the player's durable, channel-scoped chosen display name."""

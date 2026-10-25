@@ -805,3 +805,20 @@ def test_roleplay_proactive_push_keeps_atomic_format_and_exit_navigation(tmp_pat
         "parse_mode": "HTML",
         "reply_markup": module._roleplay_exit_keyboard(),
     }]
+
+    # A durable hide preference must survive a bot/store recreation and must
+    # also cover proactive delivery, not just the /hide acknowledgement.
+    telegram._transport.set_keyboard_hidden("telegram:42", True)
+    telegram._transport = TelegramTransportStore(tmp_path / "transport.sqlite3")
+    api.sent.clear()
+    asyncio.run(telegram.send_message(42, "Следующий ход.", roleplay=True))
+    assert len(api.sent) == 1
+    assert api.sent[0]["reply_markup"].remove_keyboard
+
+    api.sent.clear()
+    asyncio.run(module._send_companion_text(
+        api, 42, "Ответ на ход.", roleplay=True,
+        keyboard_hidden=telegram._transport.keyboard_hidden("telegram:42"),
+    ))
+    assert len(api.sent) == 1
+    assert api.sent[0]["reply_markup"].remove_keyboard

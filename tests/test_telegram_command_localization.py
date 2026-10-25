@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from herandhim.channels.telegram_bot import (
     _COST_CAP_FAILURE_TEXT,
+    _HIDE_MENU_BUTTON_TEXT,
     _MODEL_FAILURE_TEXT,
     _PLAYER_NAME_PROMPT,
     _RATE_LIMIT_FAILURE_TEXT,
@@ -99,7 +100,14 @@ class _Transport:
     def __init__(self, player_name: str = "Алекс") -> None:
         self.name = player_name
         self.awaiting = False
+        self.hidden = False
         self.discarded_reasons: list[tuple[str, str]] = []
+
+    def keyboard_hidden(self, _sid: str) -> bool:
+        return self.hidden
+
+    def set_keyboard_hidden(self, _sid: str, hidden: bool) -> None:
+        self.hidden = hidden
 
     def player_name(self, _sid: str) -> str:
         return self.name
@@ -128,6 +136,7 @@ def _fixture():
     bot = TelegramBot.__new__(TelegramBot)
     bot._sm = manager
     bot._allowed_users = {42}
+    bot._bot_username = None
     bot._transport = _Transport()
     message = _Message()
     update = SimpleNamespace(
@@ -173,7 +182,8 @@ def test_all_command_handlers_return_russian_service_messages(monkeypatch):
 def test_telegram_command_menu_descriptions_are_russian():
     descriptions = [command.description for command in TelegramBot._BOT_COMMANDS]
 
-    assert len(descriptions) == 7
+    assert len(descriptions) == 9
+    assert {"menu", "hide"} <= {command.command for command in TelegramBot._BOT_COMMANDS}
     assert all(any("а" <= char.lower() <= "я" for char in text) for text in descriptions)
     assert not any("已清空" in text for text in descriptions)
 
@@ -210,10 +220,10 @@ def test_start_attaches_ten_scenario_buttons_without_photo_button():
     assert manager.agent.roleplay.ended is True
     assert bot._transport.discarded_reasons == [("telegram:42", "roleplay")]
     markup = message.reply_kwargs[-1]["reply_markup"]
-    assert markup.is_persistent is True
+    assert markup.is_persistent is False
     labels = [button.text for row in markup.keyboard for button in row]
-    assert labels == [row["label"] for row in ROLEPLAY_SCENARIOS]
-    assert len(labels) == 10
+    assert labels == [row["label"] for row in ROLEPLAY_SCENARIOS] + [_HIDE_MENU_BUTTON_TEXT]
+    assert len(labels) == 11
     assert "📸 Хочу твоё фото" not in labels
 
 
@@ -252,7 +262,7 @@ def test_name_reply_is_saved_and_opens_scenario_menu():
     assert manager.agent.player_name == "Саша"
     assert message.replies == ["Приятно познакомиться, Саша. Выбери сценарий."]
     markup = message.reply_kwargs[-1]["reply_markup"]
-    assert sum(len(row) for row in markup.keyboard) == 10
+    assert sum(len(row) for row in markup.keyboard) == 11
 
 
 def test_scenario_buttons_become_typed_text_only_starts():
@@ -273,7 +283,7 @@ def test_scene_and_exit_keyboards_are_separate():
     ]
 
     assert ROLEPLAY_EXIT_BUTTON_TEXT not in menu_labels
-    assert exit_labels == [ROLEPLAY_EXIT_BUTTON_TEXT]
+    assert exit_labels == [ROLEPLAY_EXIT_BUTTON_TEXT, _HIDE_MENU_BUTTON_TEXT]
 
 
 def test_exit_button_ends_scene_and_returns_to_scenario_menu():
@@ -298,4 +308,74 @@ def test_exit_button_ends_scene_and_returns_to_scenario_menu():
     assert manager.agent.roleplay.ended is True
     assert message.replies == ["Сцена завершена. Выберите следующий сценарий."]
     markup = message.reply_kwargs[-1]["reply_markup"]
-    assert sum(len(row) for row in markup.keyboard) == 10
+    assert sum(len(row) for row in markup.keyboard) == 11
+
+
+def test_menu_hide_are_ui_only_and_do_not_end_scene_or_discard_pending_turn():
+    bot, manager, update, context, message = _fixture()
+    manager.agent.roleplay.ended = False
+    history = list(manager.agent.messages)
+
+    asyncio.run(bot._cmd_hide(update, context))
+
+    assert bot._transport.hidden is True
+    assert message.reply_kwargs[-1]["reply_markup"].remove_keyboard is True
+    assert "/menu" in message.replies[-1]
+    assert manager.agent.roleplay.is_active()
+
+    asyncio.run(bot._cmd_menu(update, context))
+
+    assert bot._transport.hidden is False
+    assert len(message.reply_kwargs[-1]["reply_markup"].keyboard) == 6
+    assert manager.agent.roleplay.is_active()
+    assert manager.agent.messages == history
+    assert bot._transport.discarded_reasons == []
+
+
+def test_hide_button_is_not_sent_to_model_or_interpreted_as_player_name():
+    bot, manager, update, context, message = _fixture()
+    bot._transport.awaiting = True
+    message.text = _HIDE_MENU_BUTTON_TEXT
+    update.effective_chat.type = "private"
+
+    async def no_op(*_args):
+        pass
+
+    bot._maybe_save_chat_id = no_op
+    asyncio.run(bot._handle_message(update, context))
+
+    assert bot._transport.hidden is True
+    assert bot._transport.awaiting is True
+    assert bot._transport.name == "Алекс"
+    assert message.reply_kwargs[-1]["reply_markup"].remove_keyboard
+
+
+def test_menu_requires_name_without_ending_existing_scene():
+    bot, manager, update, context, message = _fixture()
+    bot._transport.name = ""
+    manager.agent.roleplay.ended = False
+
+    asyncio.run(bot._cmd_menu(update, context))
+
+    assert message.replies == [_PLAYER_NAME_PROMPT]
+    assert bot._transport.awaiting
+    assert manager.agent.roleplay.is_active()
+
+
+def test_start_reopens_hidden_menu_and_ends_scene():
+    bot, manager, update, context, _message = _fixture()
+    bot._transport.hidden = True
+    manager.agent.roleplay.ended = False
+    asyncio.run(bot._cmd_start(update, context))
+    assert not bot._transport.hidden
+    assert not manager.agent.roleplay.is_active()
+
+
+def test_unauthorized_user_cannot_change_keyboard_preference():
+    bot, _manager, update, context, _message = _fixture()
+    update.effective_user.id = 99
+    asyncio.run(bot._cmd_hide(update, context))
+    assert not bot._transport.hidden
+    bot._transport.hidden = True
+    asyncio.run(bot._cmd_menu(update, context))
+    assert bot._transport.hidden

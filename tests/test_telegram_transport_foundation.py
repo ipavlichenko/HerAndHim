@@ -47,6 +47,41 @@ def test_player_name_onboarding_survives_restart(tmp_path):
     assert again.awaiting_player_name("telegram:42") is False
 
 
+def test_keyboard_preference_survives_restart_and_is_session_scoped(tmp_path):
+    from herandhim.core.telegram_transport import TelegramTransportStore
+
+    path = tmp_path / "transport.sqlite3"
+    first = TelegramTransportStore(path)
+    first.save_player_name("telegram:42", "Саша")
+    assert not first.keyboard_hidden("telegram:42")
+    first.set_keyboard_hidden("telegram:42", True)
+    restarted = TelegramTransportStore(path)
+    assert restarted.keyboard_hidden("telegram:42")
+    assert not restarted.keyboard_hidden("telegram:43")
+    assert restarted.player_name("telegram:42") == "Саша"
+    restarted.set_keyboard_hidden("telegram:42", False)
+    assert not TelegramTransportStore(path).keyboard_hidden("telegram:42")
+
+
+def test_keyboard_schema_upgrade_preserves_legacy_player_profile(tmp_path):
+    import sqlite3
+
+    from herandhim.core.telegram_transport import TelegramTransportStore
+
+    path = tmp_path / "legacy.sqlite3"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE player_profiles (session_id TEXT PRIMARY KEY, "
+                     "display_name TEXT NOT NULL DEFAULT '', awaiting_name INTEGER "
+                     "NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)")
+        conn.execute("INSERT INTO player_profiles VALUES ('telegram:42', 'Саша', 1, 'old')")
+    upgraded = TelegramTransportStore(path)
+    assert upgraded.player_name("telegram:42") == "Саша"
+    assert upgraded.awaiting_player_name("telegram:42")
+    assert not upgraded.keyboard_hidden("telegram:42")
+    upgraded.set_keyboard_hidden("telegram:42", True)
+    assert upgraded.player_name("telegram:42") == "Саша"
+
+
 def test_proactive_unanswered_boundary_and_daily_count_survive_restart(tmp_path):
     from herandhim.core.telegram_transport import TelegramTransportStore
 
