@@ -322,15 +322,14 @@ def test_active_silence_blocks_inference_and_pending_delivery(tmp_path):
     assert store.pending_count("telegram:42") == 1
 
 
-def test_active_roleplay_blocks_pending_and_new_proactive_text(tmp_path, monkeypatch):
+def test_active_roleplay_discards_ordinary_pending_but_delivers_scene_pending(
+    tmp_path, monkeypatch,
+):
     from herandhim.core.telegram_transport import TelegramTransportStore
     from herandhim.scheduler.proactive import ProactiveMessenger
 
     class ActiveAgent:
         roleplay = SimpleNamespace(is_active=lambda: True)
-
-        def chat_proactive(self, _prompt):
-            raise AssertionError("proactive inference must not enter an active scene")
 
     class Sessions:
         agent = ActiveAgent()
@@ -341,15 +340,118 @@ def test_active_roleplay_blocks_pending_and_new_proactive_text(tmp_path, monkeyp
         def get(self, _session_id):
             return self.agent
 
+        @asynccontextmanager
+        async def acquire(self, _session_id):
+            yield
+
     store = TelegramTransportStore(tmp_path / "transport.sqlite3")
     store.enqueue("telegram:42", 42, "queued before scene")
-    bot = _DeliveryBot()
+    scene_delivery = store.enqueue(
+        "telegram:42", 42, "*Sara remains in the room.*", reason="roleplay",
+    )
+
+    class SceneBot(_DeliveryBot):
+        def __init__(self):
+            super().__init__()
+            self.scene_flags = []
+
+        async def send_message(self, chat_id: int, text: str, *, roleplay=False) -> None:
+            self.sent.append((chat_id, text))
+            self.scene_flags.append(roleplay)
+
+    bot = SceneBot()
     messenger = ProactiveMessenger(Sessions(), bot, store)
     monkeypatch.setattr(messenger, "_maybe_send_selfie", lambda _chat_id: _async_none())
 
     asyncio.run(messenger._tick(42))
 
-    assert bot.sent == []
+    assert bot.sent == [(42, "*Sara remains in the room.*")]
+    assert bot.scene_flags == [True]
+    assert store.delivery_status(scene_delivery.id) == "delivered"
+    assert store.pending_count("telegram:42") == 0
+
+
+def test_active_roleplay_proactive_generation_continues_scene(tmp_path, monkeypatch):
+    from herandhim.core.telegram_transport import TelegramTransportStore
+    from herandhim.scheduler.proactive import ProactiveMessenger
+
+    prompts = []
+
+    class ActiveAgent:
+        roleplay = SimpleNamespace(is_active=lambda: True)
+
+        def chat_proactive(self, prompt):
+            prompts.append(prompt)
+            return "*Sara stays by the window.*\n\nWill you come closer?"
+
+    class Sessions:
+        agent = ActiveAgent()
+
+        def get_or_create(self, _session_id):
+            return self.agent
+
+        @asynccontextmanager
+        async def acquire(self, _session_id):
+            yield
+
+    class SceneBot(_DeliveryBot):
+        def __init__(self):
+            super().__init__()
+            self.scene_flags = []
+
+        async def send_message(self, chat_id: int, text: str, *, roleplay=False) -> None:
+            self.sent.append((chat_id, text))
+            self.scene_flags.append(roleplay)
+
+    store = TelegramTransportStore(tmp_path / "transport.sqlite3")
+    bot = SceneBot()
+    messenger = ProactiveMessenger(Sessions(), bot, store)
+    monkeypatch.setattr(messenger, "_maybe_send_selfie", lambda _chat_id: _async_none())
+
+    asyncio.run(messenger._generate_and_send(
+        42, datetime(2026, 10, 25, 5, 0, tzinfo=timezone.utc),
+        {"sentiment": "negative"}, reason="personal_date",
+    ))
+
+    assert len(prompts) == 1
+    assert prompts[0].startswith("[[ROLEPLAY_PROACTIVE_CONTINUATION]]")
+    assert "durable scene state" in prompts[0]
+    assert bot.sent == [(42, "*Sara stays by the window.*\n\nWill you come closer?")]
+    assert bot.scene_flags == [True]
+    assert store.pending_count("telegram:42") == 0
+    assert store.proactive_status("telegram:42")["delivered_today"] == 1
+
+
+def test_scene_pending_is_discarded_after_owner_leaves_roleplay(tmp_path):
+    from herandhim.core.telegram_transport import TelegramTransportStore
+    from herandhim.scheduler.proactive import ProactiveMessenger
+
+    class InactiveAgent:
+        roleplay = SimpleNamespace(is_active=lambda: False)
+
+    class Sessions:
+        agent = InactiveAgent()
+
+        def get_or_create(self, _session_id):
+            return self.agent
+
+        def get(self, _session_id):
+            return self.agent
+
+        @asynccontextmanager
+        async def acquire(self, _session_id):
+            yield
+
+    store = TelegramTransportStore(tmp_path / "transport.sqlite3")
+    scene_delivery = store.enqueue(
+        "telegram:42", 42, "stale scene move", reason="roleplay",
+    )
+    store.set_delivery_enabled(False)
+    messenger = ProactiveMessenger(Sessions(), _DeliveryBot(), store)
+
+    asyncio.run(messenger._tick(42))
+
+    assert store.delivery_status(scene_delivery.id) is None
     assert store.pending_count("telegram:42") == 0
 
 

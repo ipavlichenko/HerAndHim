@@ -216,7 +216,7 @@ class TelegramTransportStore:
     def enqueue(
         self, session_id: str, chat_id: int, text: str, *, reason: str = "contextual",
     ) -> Delivery:
-        if reason not in {"contextual", "wishlist", "personal_date"}:
+        if reason not in {"contextual", "wishlist", "personal_date", "roleplay"}:
             raise ValueError("unsupported proactive delivery reason")
         delivery = Delivery(
             id=uuid.uuid4().hex,
@@ -375,6 +375,24 @@ class TelegramTransportStore:
             return conn.execute(
                 "DELETE FROM deliveries WHERE session_id=? AND status='pending'",
                 (session_id,),
+            ).rowcount
+
+    def discard_pending_except_reason(self, session_id: str, reason: str) -> int:
+        """Discard queued messages from a conversational mode that is no longer active."""
+        with self._lock, self._connect() as conn:
+            return conn.execute(
+                "DELETE FROM deliveries WHERE session_id=? AND status='pending' "
+                "AND reason<>?",
+                (session_id, reason),
+            ).rowcount
+
+    def discard_pending_reason(self, session_id: str, reason: str) -> int:
+        """Discard queued messages owned by one conversational mode."""
+        with self._lock, self._connect() as conn:
+            return conn.execute(
+                "DELETE FROM deliveries WHERE session_id=? AND status='pending' "
+                "AND reason=?",
+                (session_id, reason),
             ).rowcount
 
     def enqueue_media(

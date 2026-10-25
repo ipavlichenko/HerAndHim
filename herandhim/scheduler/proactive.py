@@ -372,9 +372,30 @@ def _proactive_chat(agent, prompt: str) -> str:
 
 
 def _has_active_roleplay(agent) -> bool:
-    """Proactive work must never advance or speak inside an owner-led scene."""
+    """Return whether proactive initiative belongs to the current scene."""
     roleplay = getattr(agent, "roleplay", None)
     return bool(roleplay is not None and roleplay.is_active())
+
+
+def _build_roleplay_continuation_prompt() -> str:
+    """Request one autonomous move inside the already-active scene.
+
+    The role-play state and transcript are the source of truth.  Deliberately
+    omit wall-clock, personal-date and wishlist context: those belong to the
+    companion's ordinary life and must not replace the scene's reality.
+    """
+    return (
+        "[[ROLEPLAY_PROACTIVE_CONTINUATION]]\n"
+        "Continue the currently active role-play scene as Sarah's autonomous "
+        "next move after a plausible pause. Use the durable scene state and "
+        "conversation history as the only continuity source. Stay in the same "
+        "scenario, location, roles, phase, props, consent state, and unresolved "
+        "tension. Do not switch to Sarah's ordinary daily life, the real-world "
+        "clock, weather, a personal date, a wishlist item, or another location. "
+        "Do not invent or narrate Ilya's actions, thoughts, consent, or reply. "
+        "Make one complete, concise, playable move that leaves him a meaningful "
+        "choice."
+    )
 
 
 class ProactiveMessenger:
@@ -455,21 +476,35 @@ class ProactiveMessenger:
                 logger.info("[Proactive] no-op: active owner silence boundary")
                 return
 
-            # An owner-led scene is an exclusive conversational transaction.
-            # Do not recover queued proactive text or run proactive inference
-            # while it is active: either can interleave with or advance it.
+            # One durable queue serves two conversational realities.  Keep only
+            # deliveries owned by the currently active reality: an ordinary
+            # nudge cannot enter a scene, and a delayed scene move cannot appear
+            # after the owner has left that scene.
             agent = self._sm.get_or_create(session_id)
-            if _has_active_roleplay(agent):
-                discarded = self._transport.discard_pending(session_id)
-                logger.info("[Proactive] no-op: owner role-play scene is active")
-                if discarded:
-                    logger.info("[Proactive] Discarded %d stale queued text(s).", discarded)
-                return
+            async with self._sm.acquire(session_id):
+                if _has_active_roleplay(agent):
+                    discarded = self._transport.discard_pending_except_reason(
+                        session_id, "roleplay",
+                    )
+                    if discarded:
+                        logger.info(
+                            "[Proactive] Discarded %d non-scene queued text(s).",
+                            discarded,
+                        )
+                else:
+                    discarded = self._transport.discard_pending_reason(
+                        session_id, "roleplay",
+                    )
+                    if discarded:
+                        logger.info(
+                            "[Proactive] Discarded %d stale scene continuation(s).",
+                            discarded,
+                        )
 
-            # Recover a previously accepted candidate before considering a new
-            # one.  The durable outbox is what makes restart recovery possible.
-            if await self._deliver_pending(session_id):
-                return
+                # Claim and send while the session boundary is stable.  This
+                # prevents a scene start/exit from racing a recovered message.
+                if await self._deliver_pending(session_id):
+                    return
 
             # Operator kill switch stops delivery and prevents new inference;
             # queued state is retained for a later resume.
@@ -559,12 +594,6 @@ class ProactiveMessenger:
     ) -> None:
         session_id = self._chat_session_id(chat_id)
         agent = self._sm.get_or_create(session_id)
-        if _has_active_roleplay(agent):
-            logger.info("[Proactive] Suppressed while an owner role-play scene is active.")
-            return
-        # Built after the agent exists so it can read the affect graph for a
-        # specific follow-up.
-        prompt = _build_prompt(now, sentiment_ctx, agent=agent)
         loop = asyncio.get_event_loop()
 
         # ── Soul Mate: update proactive count for milestones ────────────────
@@ -580,18 +609,34 @@ class ProactiveMessenger:
 
         try:
             async with self._sm.acquire(session_id):
+                # Decide the conversational reality under the same session
+                # lock that protects generation and acceptance into the
+                # durable outbox.  Otherwise an owner exit/start can race the
+                # earlier active-state read.
+                active_roleplay = _has_active_roleplay(agent)
+                prompt = (
+                    _build_roleplay_continuation_prompt()
+                    if active_roleplay
+                    else _build_prompt(now, sentiment_ctx, agent=agent)
+                )
+                delivery_reason = "roleplay" if active_roleplay else reason
                 response = await asyncio.wait_for(
                     loop.run_in_executor(None, _proactive_chat, agent, prompt),
                     timeout=300.0,
                 )
+                text = (response or "").strip()
+                if not text:
+                    return
+                self._transport.enqueue(
+                    session_id, chat_id, text, reason=delivery_reason,
+                )
+                if active_roleplay:
+                    await self._deliver_pending(session_id)
+                    return
         except Exception as exc:
             logger.exception("[Proactive] Generation failed: %s", exc)
             return
 
-        text = (response or "").strip()
-        if not text:
-            return
-        self._transport.enqueue(session_id, chat_id, text, reason=reason)
         await self._deliver_pending(session_id)
 
     async def _deliver_pending(self, session_id: str) -> bool:
@@ -600,7 +645,12 @@ class ProactiveMessenger:
         if delivery is None:
             return False
         try:
-            await self._telegram_bot.send_message(delivery.chat_id, delivery.text)
+            if delivery.reason == "roleplay":
+                await self._telegram_bot.send_message(
+                    delivery.chat_id, delivery.text, roleplay=True,
+                )
+            else:
+                await self._telegram_bot.send_message(delivery.chat_id, delivery.text)
         except Exception as exc:
             # ``attempted`` is terminal by design: retrying an ambiguous
             # Telegram request could duplicate a message already accepted by
@@ -618,7 +668,8 @@ class ProactiveMessenger:
             delivery.chat_id,
             delivery.id,
         )
-        await self._maybe_send_selfie(delivery.chat_id)
+        if delivery.reason != "roleplay":
+            await self._maybe_send_selfie(delivery.chat_id)
         return True
 
     async def _maybe_send_wish(self, chat_id: int, now: datetime) -> bool:

@@ -721,3 +721,36 @@ def test_generic_telegram_push_uses_the_same_safe_action_renderer(tmp_path):
         "text": "<i>Sara wakes.</i>\n\nHi &lt;there&gt;.",
         "parse_mode": "HTML",
     }]
+
+
+def test_roleplay_proactive_push_keeps_atomic_format_and_exit_navigation(tmp_path):
+    from herandhim.channels import telegram_bot as module
+    from herandhim.channels.telegram_bot import TelegramBot
+    from herandhim.core.telegram_transport import TelegramTransportStore
+
+    class _Api:
+        def __init__(self):
+            self.sent = []
+
+        async def send_message(self, **kwargs):
+            self.sent.append(kwargs)
+
+    api = _Api()
+    telegram = TelegramBot(
+        SimpleNamespace(),
+        "synthetic-not-a-real-token",
+        allowed_users=[42],
+        transport_store=TelegramTransportStore(tmp_path / "transport.sqlite3"),
+    )
+    telegram._app = SimpleNamespace(bot=api)
+
+    asyncio.run(telegram.send_message(
+        42, "*Sara stays in the room.*\n\nYour move.", roleplay=True,
+    ))
+
+    assert api.sent == [{
+        "chat_id": 42,
+        "text": "<i>Sara stays in the room.</i>\n\nYour move.",
+        "parse_mode": "HTML",
+        "reply_markup": module._roleplay_exit_keyboard(),
+    }]

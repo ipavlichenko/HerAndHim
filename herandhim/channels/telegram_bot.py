@@ -222,15 +222,24 @@ class TelegramBot:
 
     # ── Push message (called by cron / heartbeat) ─────────────────────────────
 
-    async def send_message(self, chat_id: int, text: str) -> None:
+    async def send_message(
+        self, chat_id: int, text: str, *, roleplay: bool = False,
+    ) -> None:
         """Send a message to a specific chat (used by cron/heartbeat)."""
         if self._app is None:
             logger.warning("[Telegram] send_message called before bot is running")
             return
+        if roleplay:
+            for chunk in _split_message(text):
+                await self._app.bot.send_message(
+                    chat_id=chat_id,
+                    text=_roleplay_to_html(chunk),
+                    parse_mode="HTML",
+                    reply_markup=_roleplay_exit_keyboard(),
+                )
+            return
         await self._app.bot.send_message(
-            chat_id=chat_id,
-            text=_roleplay_to_html(text),
-            parse_mode="HTML",
+            chat_id=chat_id, text=_roleplay_to_html(text), parse_mode="HTML",
         )
 
     async def send_photo(
