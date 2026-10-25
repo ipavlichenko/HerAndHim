@@ -47,6 +47,7 @@ import queue as _queue
 import re
 import tempfile
 import time
+import unicodedata
 from typing import TYPE_CHECKING
 
 from telegram import (
@@ -54,6 +55,7 @@ from telegram import (
     KeyboardButton,
     ReactionTypeEmoji,
     ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     Update,
 )
 from telegram.ext import (
@@ -95,6 +97,41 @@ _COST_CAP_FAILURE_TEXT = (
 )
 _VOICE_MAX_DURATION_SECONDS = 120
 _VOICE_MAX_INPUT_BYTES = 8 * 1024 * 1024
+_PLAYER_NAME_PROMPT = (
+    "Как тебя зовут? Напиши имя или псевдоним, которым Сара может к тебе обращаться."
+)
+_PLAYER_NAME_INVALID = (
+    "Не получилось распознать имя. Используй 1–40 букв, пробел, дефис или апостроф."
+)
+
+
+def _normalize_player_name(value: str) -> str | None:
+    """Return a prompt-safe human name without guessing or transliteration."""
+    name = " ".join(unicodedata.normalize("NFC", value or "").split())
+    if not name or len(name) > 40:
+        return None
+    allowed_punctuation = {" ", "-", "'", "’", "ʼ"}
+    has_letter = False
+    for char in name:
+        category = unicodedata.category(char)
+        if category.startswith("L"):
+            has_letter = True
+            continue
+        if category.startswith("M") or char in allowed_punctuation:
+            continue
+        return None
+    return name if has_letter else None
+
+
+def _set_agent_player_name(agent, name: str) -> None:
+    setter = getattr(agent, "set_player_name", None)
+    if callable(setter):
+        setter(name)
+        return
+    roleplay = getattr(agent, "roleplay", None)
+    roleplay_setter = getattr(roleplay, "set_player_name", None)
+    if callable(roleplay_setter):
+        roleplay_setter(name)
 
 
 def _scenario_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -425,7 +462,16 @@ class TelegramBot:
         if not await self._check_access(update, context):
             return
         sid = self._session_id(update.effective_chat.id)
-        self._sm.get_or_create(sid)
+        agent = self._sm.get_or_create(sid)
+        player_name = self._transport.player_name(sid)
+        if not player_name:
+            self._transport.begin_player_name_onboarding(sid)
+            await update.message.reply_text(
+                _PLAYER_NAME_PROMPT,
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return
+        _set_agent_player_name(agent, player_name)
         await update.message.reply_text(
             "👋 Это личный Telegram-бот Сары.\n\n"
             "Выберите один из 10 ролевых сценариев на клавиатуре ниже. "
@@ -436,9 +482,20 @@ class TelegramBot:
             "  /clear          — очистить историю, сохранив память\n"
             "  /reset          — то же, что /clear\n"
             "  /status         — показать состояние сессии\n"
+            "  /name           — изменить имя игрока\n"
             "  /compact [указание] — сжать историю диалога\n"
             "  /clear_files    — удалить загруженные файлы",
             reply_markup=_scenario_menu_keyboard(),
+        )
+
+    async def _cmd_name(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not await self._check_access(update, context):
+            return
+        sid = self._session_id(update.effective_chat.id)
+        self._transport.begin_player_name_onboarding(sid)
+        await update.message.reply_text(
+            _PLAYER_NAME_PROMPT,
+            reply_markup=ReplyKeyboardRemove(),
         )
 
     async def _cmd_reset(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -520,8 +577,31 @@ class TelegramBot:
 
         user_text = (update.message.text or update.message.caption or "").strip()
         user_text = self._strip_mention(user_text)
+        if self._transport.awaiting_player_name(sid):
+            player_name = _normalize_player_name(user_text)
+            if player_name is None:
+                await update.message.reply_text(
+                    _PLAYER_NAME_INVALID,
+                    reply_markup=ReplyKeyboardRemove(),
+                )
+                return
+            self._transport.save_player_name(sid, player_name)
+            agent = self._sm.get_or_create(sid)
+            _set_agent_player_name(agent, player_name)
+            roleplay = getattr(agent, "roleplay", None)
+            is_active = getattr(roleplay, "is_active", None)
+            active_scene = bool(callable(is_active) and is_active())
+            await update.message.reply_text(
+                f"Приятно познакомиться, {player_name}. "
+                + ("Продолжим текущую сцену." if active_scene else "Выбери сценарий."),
+                reply_markup=(
+                    _roleplay_exit_keyboard() if active_scene else _scenario_menu_keyboard()
+                ),
+            )
+            return
         if user_text == ROLEPLAY_EXIT_BUTTON_TEXT:
             agent = self._sm.get_or_create(sid)
+            _set_agent_player_name(agent, self._transport.player_name(sid))
             roleplay = getattr(agent, "roleplay", None)
             if roleplay is not None:
                 roleplay.end()
@@ -560,6 +640,7 @@ class TelegramBot:
             return
 
         agent = self._sm.get_or_create(sid)
+        _set_agent_player_name(agent, self._transport.player_name(sid))
 
         # Companion mode (a soul/persona is configured) delivers like a real
         # person texting: selective emoji reactions, absence awareness, a
@@ -983,6 +1064,7 @@ class TelegramBot:
         BotCommand("clear",       "🧹 Очистить историю, сохранив память"),
         BotCommand("reset",       "То же, что /clear"),
         BotCommand("status",      "Показать состояние сессии"),
+        BotCommand("name",        "Изменить имя игрока"),
         BotCommand("compact",     "Сжать историю диалога"),
         BotCommand("clear_files", "Удалить загруженные файлы"),
     ]
@@ -994,6 +1076,7 @@ class TelegramBot:
         app.add_handler(CommandHandler("reset", self._cmd_reset))
         app.add_handler(CommandHandler("clear", self._cmd_reset))  # alias
         app.add_handler(CommandHandler("status", self._cmd_status))
+        app.add_handler(CommandHandler("name", self._cmd_name))
         app.add_handler(CommandHandler("compact", self._cmd_compact))
         app.add_handler(CommandHandler("clear_files", self._cmd_clear_files))
         app.add_handler(MessageHandler(

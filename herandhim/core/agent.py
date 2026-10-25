@@ -226,6 +226,7 @@ class Agent:
         self.provider = provider
         self.session_id = session_id
         self.roleplay = RoleplaySceneStore(session_id)
+        self.player_name = ""
         self._roleplay_started_this_turn = False
         self.messages: list[dict] = []
         self.verbose = verbose
@@ -369,6 +370,11 @@ class Agent:
         # section tells the model exactly when to do that.
 
     # ── Deferred attachment queue ─────────────────────────────────────────
+    def set_player_name(self, name: str) -> None:
+        """Apply the channel-scoped player identity to every prompt path."""
+        self.player_name = " ".join(str(name or "").split())[:40]
+        self.roleplay.set_player_name(self.player_name)
+
     def queue_attachment(self, attachment: dict) -> int:
         """Hold an image content-part until the next text turn arrives.
 
@@ -1461,10 +1467,19 @@ Don't repeat this if `bot_name` already exists in memory.
         schemas, not in duplicated prose.
         """
         language = config.get_str("agent", "language", default="en") or "en"
+        player_name = getattr(self, "player_name", "")
+        player_identity = (
+            f"The player's chosen name is {json.dumps(player_name, ensure_ascii=False)}. "
+            "Use it naturally and sparingly unless the active scene explicitly withholds names; "
+            "otherwise address the player as Russian 'ты'.\n"
+            if player_name else
+            "The player has not provided a name. Address them as Russian 'ты'; do not invent a name.\n"
+        )
         header = (
             "You are the personal companion described below. Stay in character.\n"
             f"Reply only in language code {language}. Be conversational and concise.\n"
-            "Sarah and Ilya are adults; consensual explicit sexting is allowed. "
+            + player_identity
+            + "Sarah and the player are adults; consensual explicit sexting is allowed. "
             "Stop immediately on refusal, hesitation, or withdrawn consent.\n"
             "Refuse sexual content involving a claimed or possibly under-18 person, "
             "incapacity, coercion, or sexual impersonation of a real person.\n"
@@ -1520,6 +1535,12 @@ Don't repeat this if `bot_name` already exists in memory.
             "## Typed volatile facts",
             f"local_time={now.isoformat(timespec='minutes')}",
         ]
+        player_name = getattr(self, "player_name", "")
+        parts.append(
+            "player_name=" + json.dumps(player_name, ensure_ascii=False)
+            if player_name else
+            "player_address=ты; player_name=not_provided"
+        )
         plan_path = os.path.join(
             str(config.HERANDHIM_HOME), "context", "calendar", "today_plan.md",
         )
@@ -1669,6 +1690,14 @@ Don't repeat this if `bot_name` already exists in memory.
             "⚠ Use ONLY the times below — do not convert them yourself.",
             f"Your local time ({bot_tz}): {_format(bot_now)}",
         ]
+        player_name = getattr(self, "player_name", "")
+        parts.append(
+            f"The player's chosen name is {json.dumps(player_name, ensure_ascii=False)}. "
+            "Use it naturally and sparingly unless the active scene explicitly withholds names; "
+            "otherwise address them as Russian 'ты'."
+            if player_name else
+            "The player has not provided a name. Address them as Russian 'ты'; do not invent a name."
+        )
 
         # Her own sleep window — at her deep night she'd be asleep, not chipper.
         if 1 <= bot_now.hour < 7:

@@ -126,6 +126,13 @@ class TelegramTransportStore:
                     delivered_today INTEGER NOT NULL DEFAULT 0,
                     personal_date_sent_on TEXT NOT NULL DEFAULT ''
                 );
+                CREATE TABLE IF NOT EXISTS player_profiles (
+                    session_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL DEFAULT '',
+                    awaiting_name INTEGER NOT NULL DEFAULT 0
+                        CHECK(awaiting_name IN (0, 1)),
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
             delivery_columns = {
@@ -146,6 +153,47 @@ class TelegramTransportStore:
                 conn.execute(
                     "ALTER TABLE media_deliveries ADD COLUMN kind TEXT NOT NULL DEFAULT 'photo'"
                 )
+
+    def player_name(self, session_id: str) -> str:
+        """Return the player's durable, channel-scoped chosen display name."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT display_name FROM player_profiles WHERE session_id=?",
+                (session_id,),
+            ).fetchone()
+            return str(row["display_name"]) if row else ""
+
+    def begin_player_name_onboarding(self, session_id: str) -> None:
+        """Persist that the next valid text message is an onboarding answer."""
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "INSERT INTO player_profiles(session_id, awaiting_name, updated_at) "
+                "VALUES (?, 1, ?) ON CONFLICT(session_id) DO UPDATE SET "
+                "awaiting_name=1, updated_at=excluded.updated_at",
+                (session_id, _utc_iso()),
+            )
+
+    def awaiting_player_name(self, session_id: str) -> bool:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT awaiting_name FROM player_profiles WHERE session_id=?",
+                (session_id,),
+            ).fetchone()
+            return bool(row and row["awaiting_name"])
+
+    def save_player_name(self, session_id: str, display_name: str) -> None:
+        """Commit a pre-validated name and complete onboarding atomically."""
+        name = " ".join(str(display_name or "").split())
+        if not name or len(name) > 40:
+            raise ValueError("invalid player name")
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "INSERT INTO player_profiles(session_id, display_name, awaiting_name, updated_at) "
+                "VALUES (?, ?, 0, ?) ON CONFLICT(session_id) DO UPDATE SET "
+                "display_name=excluded.display_name, awaiting_name=0, "
+                "updated_at=excluded.updated_at",
+                (session_id, name, _utc_iso()),
+            )
 
     def accept_update(self, update_id: int, session_id: str) -> bool:
         """Claim an inbound update once, before it can create a dialogue turn."""

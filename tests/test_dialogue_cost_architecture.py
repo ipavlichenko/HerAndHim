@@ -21,6 +21,7 @@ def _secured_agent() -> Agent:
     agent.soul_instruction = ""
     agent.persona_instruction = ""
     agent.profile_instruction = ""
+    agent.player_name = ""
     agent.messages = []
     all_tools = (
         tool_defs.PRIMITIVE_TOOLS
@@ -46,6 +47,18 @@ def test_versioned_identity_is_compact_stable_and_keeps_non_negotiables(monkeypa
     assert "stop immediately" in first.lower()
     for safety_marker in ("under-18", "incapacity", "coercion", "real person"):
         assert safety_marker in first
+
+
+def test_secured_identity_uses_chosen_player_name_without_owner_name(monkeypatch):
+    monkeypatch.setattr("herandhim.config.get_str", lambda *args, **kwargs: "ru")
+    agent = _secured_agent()
+    agent.player_name = "Саша"
+
+    card = agent._build_secured_response_card(15_800)
+
+    assert 'chosen name is "Саша"' in card
+    assert "Russian 'ты'" in card
+    assert "Илья" not in card
 
 
 def test_turn_router_exposes_only_the_tool_family_needed_now():

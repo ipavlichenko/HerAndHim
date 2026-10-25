@@ -30,6 +30,23 @@ def test_update_receipt_survives_restart(tmp_path):
     assert restarted.accept_update(1002, "telegram:42")
 
 
+def test_player_name_onboarding_survives_restart(tmp_path):
+    from herandhim.core.telegram_transport import TelegramTransportStore
+
+    path = tmp_path / "transport.sqlite3"
+    first = TelegramTransportStore(path)
+    first.begin_player_name_onboarding("telegram:42")
+    assert first.awaiting_player_name("telegram:42") is True
+
+    restarted = TelegramTransportStore(path)
+    assert restarted.awaiting_player_name("telegram:42") is True
+    restarted.save_player_name("telegram:42", "Саша")
+
+    again = TelegramTransportStore(path)
+    assert again.player_name("telegram:42") == "Саша"
+    assert again.awaiting_player_name("telegram:42") is False
+
+
 def test_proactive_unanswered_boundary_and_daily_count_survive_restart(tmp_path):
     from herandhim.core.telegram_transport import TelegramTransportStore
 

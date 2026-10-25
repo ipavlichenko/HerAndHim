@@ -183,13 +183,16 @@ def test_all_ten_scenarios_have_distinct_durable_initial_state(tmp_path):
 
 def test_scene_context_preserves_agency_continuity_and_player_control(tmp_path):
     store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    store.set_player_name("Саша")
     store.start()
 
     block = store.prompt_block()
 
     assert "ACTIVE ROLE-PLAY SCENE" in block
     assert "Sarah has her own desire" in block
-    assert "Never narrate Ilya's unspoken" in block
+    assert "Never narrate the player's unspoken" in block
+    assert 'chosen name is "Саша"' in block
+    assert "Илья" not in block
     assert "Actions narrate Sarah in third person" in block
     assert "propose_roleplay_turn" in block
     assert "plain Russian text without Markdown" in block
@@ -199,6 +202,33 @@ def test_scene_context_preserves_agency_continuity_and_player_control(tmp_path):
     assert "stakes" in block
     for word in ("location", "positions", "clothing", "props", "rules"):
         assert word in block
+
+
+def test_legacy_scene_state_migrates_without_resetting_progress(tmp_path):
+    store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    legacy = store.initial_state()
+    legacy["version"] = 2
+    legacy["ilya_position"] = legacy.pop("player_position")
+    legacy["ilya_clothing"] = legacy.pop("player_clothing")
+    legacy["last_beat"] = "Сара посмотрела на Илью"
+    legacy["turn_index"] = 7
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+
+    migrated = store.load()
+
+    assert migrated["version"] == 3
+    assert migrated["turn_index"] == 7
+    assert migrated["player_position"]
+    assert migrated["player_clothing"]
+    assert "ilya_position" not in migrated
+    assert "Илья" not in migrated["last_beat"]
+
+    store.set_player_name("Саша")
+    persisted = json.loads(store.path.read_text(encoding="utf-8"))
+    assert persisted["player_name"] == "Саша"
+    assert persisted["version"] == 3
+    assert "ilya_position" not in persisted
 
 
 def test_mark_opened_and_end_are_durable(tmp_path):

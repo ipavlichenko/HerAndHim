@@ -392,8 +392,8 @@ def _build_roleplay_continuation_prompt() -> str:
         "scenario, location, roles, phase, props, consent state, and unresolved "
         "tension. Do not switch to Sarah's ordinary daily life, the real-world "
         "clock, weather, a personal date, a wishlist item, or another location. "
-        "Do not invent or narrate Ilya's actions, thoughts, consent, or reply. "
-        "Make one complete, concise, playable move that leaves him a meaningful "
+        "Do not invent or narrate the player's actions, thoughts, consent, or reply. "
+        "Make one complete, concise, playable move that leaves the player a meaningful "
         "choice."
     )
 
@@ -419,6 +419,11 @@ class ProactiveMessenger:
         self._today: date | None = None
         self._today_count: int = 0
         self._running_tick: bool = False
+
+    def _apply_player_name(self, agent, session_id: str) -> None:
+        setter = getattr(agent, "set_player_name", None)
+        if callable(setter):
+            setter(self._transport.player_name(session_id))
 
     def _chat_session_id(self, chat_id: int) -> str:
         """The session the USER is talking in — proactive messages belong in
@@ -481,6 +486,7 @@ class ProactiveMessenger:
             # nudge cannot enter a scene, and a delayed scene move cannot appear
             # after the owner has left that scene.
             agent = self._sm.get_or_create(session_id)
+            self._apply_player_name(agent, session_id)
             async with self._sm.acquire(session_id):
                 if _has_active_roleplay(agent):
                     discarded = self._transport.discard_pending_except_reason(
@@ -594,6 +600,7 @@ class ProactiveMessenger:
     ) -> None:
         session_id = self._chat_session_id(chat_id)
         agent = self._sm.get_or_create(session_id)
+        self._apply_player_name(agent, session_id)
         loop = asyncio.get_event_loop()
 
         # ── Soul Mate: update proactive count for milestones ────────────────
@@ -694,6 +701,7 @@ class ProactiveMessenger:
         prompt = _build_wish_prompt(wish.text, now)
         session_id = self._chat_session_id(chat_id)
         agent = self._sm.get_or_create(session_id)
+        self._apply_player_name(agent, session_id)
         if _has_active_roleplay(agent):
             logger.info("[Proactive] Wish suppressed while an owner role-play scene is active.")
             return False
