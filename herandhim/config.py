@@ -19,6 +19,8 @@ from __future__ import annotations
 import json
 import os
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +37,21 @@ _config_paths: dict[str, Path | None] = {}
 # One install, one config — but the cache stays keyed so tests can swap
 # HERANDHIM_HOME without leaking a previous parse into the next one.
 _CACHE_KEY = ""
+_runtime_scope: ContextVar[tuple[Path, dict] | None] = ContextVar("runtime_scope", default=None)
+
+
+@contextmanager
+def runtime_scope(data_home: Path, settings: dict):
+    """Bind data and settings to a conversation without changing process globals.
+
+    Callers must copy this context into executor jobs. Provider credentials and
+    its shared spend ledger stay on the already-constructed provider instance.
+    """
+    token = _runtime_scope.set((Path(data_home), settings))
+    try:
+        yield
+    finally:
+        _runtime_scope.reset(token)
 
 
 def _tenant_key() -> str:
@@ -43,7 +60,8 @@ def _tenant_key() -> str:
 
 def home() -> Path:
     """The HerAndHim home directory (``~/.herandhim`` unless overridden)."""
-    return _HERANDHIM_BASE
+    scope = _runtime_scope.get()
+    return scope[0] if scope else _HERANDHIM_BASE
 
 
 def __getattr__(name: str):
@@ -120,6 +138,11 @@ def load(path: str | Path | None = None, *, force: bool = False) -> dict:
 
     Parsed once and cached; pass ``force=True`` after writing the file.
     """
+    scope = _runtime_scope.get()
+    if scope is not None:
+        if path is not None or force:
+            raise RuntimeError("Cannot reload global configuration inside a conversation")
+        return scope[1]
     key = _tenant_key()
 
     if key in _configs and not force:
@@ -146,16 +169,14 @@ def get(*keys: str, env: str | None = None, default: Any = None) -> Any:
     config.get("llm", "provider", env="LLM_PROVIDER", default="deepseek")
     config.get("channels", "telegram", "token", env="TELEGRAM_BOT_TOKEN")
     """
-    key = _tenant_key()
-    if key not in _configs:
-        load()
+    settings = load()
 
     if env:
         env_val = os.environ.get(env)
         if env_val is not None:
             return env_val
 
-    val = _deep_get(_configs.get(key, {}), *keys, default=default)
+    val = _deep_get(settings, *keys, default=default)
     return val
 
 
@@ -173,16 +194,14 @@ def get_str(*keys: str, env: str | None = None, default: str = "") -> str:
 
 def get_list(*keys: str, env: str | None = None, default: list | None = None) -> list:
     """Get a list value.  Env var is parsed as comma-separated."""
-    key = _tenant_key()
-    if key not in _configs:
-        load()
+    settings = load()
 
     if env:
         env_val = os.environ.get(env)
         if env_val is not None and env_val.strip():
             return [v.strip() for v in env_val.split(",") if v.strip()]
 
-    val = _deep_get(_configs.get(key, {}), *keys)
+    val = _deep_get(settings, *keys)
     if isinstance(val, list):
         return val
     return default or []
@@ -201,10 +220,7 @@ def config_path() -> Path | None:
 
 def as_dict() -> dict:
     """Return a copy of the full loaded config dict for the current tenant."""
-    key = _tenant_key()
-    if key not in _configs:
-        load()
-    return dict(_configs.get(key, {}))
+    return dict(load())
 
 
 def get_bool(*keys: str, env: str | None = None, default: bool = False) -> bool:

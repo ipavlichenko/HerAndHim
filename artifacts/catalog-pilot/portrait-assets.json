@@ -1,0 +1,122 @@
+[
+  {
+    "id": "sara",
+    "source": "sara.png",
+    "web": "sara.webp",
+    "bytes": 98922
+  },
+  {
+    "id": "alisa",
+    "source": "alisa.png",
+    "web": "alisa.webp",
+    "bytes": 120732
+  },
+  {
+    "id": "nika",
+    "source": "nika.png",
+    "web": "nika.webp",
+    "bytes": 69154
+  },
+  {
+    "id": "vera",
+    "source": "vera.png",
+    "web": "vera.webp",
+    "bytes": 63888
+  },
+  {
+    "id": "maya",
+    "source": "maya.png",
+    "web": "maya.webp",
+    "bytes": 95364
+  },
+  {
+    "id": "eva",
+    "source": "eva.png",
+    "web": "eva.webp",
+    "bytes": 62520
+  },
+  {
+    "id": "rita",
+    "source": "rita.png",
+    "web": "rita.webp",
+    "bytes": 78324
+  },
+  {
+    "id": "diana",
+    "source": "diana.png",
+    "web": "diana.webp",
+    "bytes": 44456
+  },
+  {
+    "id": "elena",
+    "source": "elena.png",
+    "web": "elena.webp",
+    "bytes": 90042
+  },
+  {
+    "id": "irina",
+    "source": "irina.png",
+    "web": "irina.webp",
+    "bytes": 85740
+  },
+  {
+    "id": "sonya",
+    "source": "sonya-anime-v2.png",
+    "web": "sonya.webp",
+    "bytes": 94160
+  },
+  {
+    "id": "yuna",
+    "source": "yuna-anime-v2.png",
+    "web": "yuna.webp",
+    "bytes": 76058
+  },
+  {
+    "id": "liza",
+    "source": "liza-anime-v2.png",
+    "web": "liza.webp",
+    "bytes": 114116
+  },
+  {
+    "id": "arina",
+    "source": "arina-anime-v2.png",
+    "web": "arina.webp",
+    "bytes": 115352
+  },
+  {
+    "id": "kira",
+    "source": "kira-anime-v2.png",
+    "web": "kira.webp",
+    "bytes": 60136
+  },
+  {
+    "id": "marina",
+    "source": "marina-anime-v2.png",
+    "web": "marina.webp",
+    "bytes": 84664
+  },
+  {
+    "id": "olga",
+    "source": "olga-anime-v2.png",
+    "web": "olga.webp",
+    "bytes": 102924
+  },
+  {
+    "id": "victoria",
+    "source": "victoria-anime-v2.png",
+    "web": "victoria.webp",
+    "bytes": 58002
+  },
+  {
+    "id": "milana",
+    "source": "milana-anime-v2.png",
+    "web": "milana.webp",
+    "bytes": 70660
+  },
+  {
+    "id": "larisa",
+    "source": "larisa-anime-v2.png",
+    "web": "larisa.webp",
+    "bytes": 97832
+  }
+]

@@ -1,0 +1,125 @@
+{
+  "checked_at": "2026-10-25T16:22:09.163849+00:00",
+  "results": [
+    {
+      "domain": "erohey.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/erohey.com"
+    },
+    {
+      "domain": "erojoy.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/erojoy.com"
+    },
+    {
+      "domain": "eroyou.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/eroyou.com"
+    },
+    {
+      "domain": "eromate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/eromate.com"
+    },
+    {
+      "domain": "erosoul.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/erosoul.com"
+    },
+    {
+      "domain": "erodate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/erodate.com"
+    },
+    {
+      "domain": "erowish.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/erowish.com"
+    },
+    {
+      "domain": "erovibe.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/erovibe.com"
+    },
+    {
+      "domain": "eromila.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/eromila.com"
+    },
+    {
+      "domain": "eronia.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/eronia.com"
+    },
+    {
+      "domain": "erolia.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/erolia.com"
+    },
+    {
+      "domain": "eronami.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/eronami.com"
+    },
+    {
+      "domain": "eroria.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/eroria.com"
+    },
+    {
+      "domain": "girlmuse.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlmuse.com"
+    },
+    {
+      "domain": "girlwish.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlwish.com"
+    },
+    {
+      "domain": "girlvibe.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlvibe.com"
+    },
+    {
+      "domain": "girldear.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/girldear.com"
+    },
+    {
+      "domain": "girlmood.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlmood.com"
+    },
+    {
+      "domain": "heyeromi.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/heyeromi.com"
+    },
+    {
+      "domain": "dearero.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/dearero.com"
+    }
+  ]
+}

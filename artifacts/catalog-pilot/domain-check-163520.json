@@ -1,0 +1,126 @@
+{
+  "checked_at": "2026-10-25T16:35:20.996904+00:00",
+  "method": "Verisign .com RDAP; 404 means no registry record; price/checkout not verified",
+  "results": [
+    {
+      "domain": "aigirl.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirl.com"
+    },
+    {
+      "domain": "girlai.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlai.com"
+    },
+    {
+      "domain": "myaigirl.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/myaigirl.com"
+    },
+    {
+      "domain": "heyaigirl.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/heyaigirl.com"
+    },
+    {
+      "domain": "dearaigirl.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/dearaigirl.com"
+    },
+    {
+      "domain": "hiaigirl.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/hiaigirl.com"
+    },
+    {
+      "domain": "aigirlie.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlie.com"
+    },
+    {
+      "domain": "aigirly.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirly.com"
+    },
+    {
+      "domain": "girlaime.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlaime.com"
+    },
+    {
+      "domain": "girlaiya.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlaiya.com"
+    },
+    {
+      "domain": "girlaiyo.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/girlaiyo.com"
+    },
+    {
+      "domain": "aigirlgo.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlgo.com"
+    },
+    {
+      "domain": "aigirlnow.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlnow.com"
+    },
+    {
+      "domain": "aigirlplay.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlplay.com"
+    },
+    {
+      "domain": "aigirlchat.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlchat.com"
+    },
+    {
+      "domain": "getaigirl.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/getaigirl.com"
+    },
+    {
+      "domain": "meet-aigirl.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/meet-aigirl.com"
+    },
+    {
+      "domain": "aiyourgirl.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aiyourgirl.com"
+    },
+    {
+      "domain": "youraigirl.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/youraigirl.com"
+    },
+    {
+      "domain": "aigrla.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigrla.com"
+    }
+  ]
+}

@@ -90,6 +90,14 @@ async def start_telegram(
     global _active_provider
     _active_provider = provider
 
+    if config.get_bool("catalog", "enabled", default=False):
+        # Explicit opt-in. Never silently fall back to the private owner runtime
+        # after a catalogue configuration failure, and never start owner jobs.
+        from .catalog.telegram import create_catalog_bot
+        bot = create_catalog_bot(provider)
+        await bot.start_async()
+        return [bot]
+
     store = SessionStore()
     session_manager = SessionManager(agent_factory=lambda sid: None, store=store)
 

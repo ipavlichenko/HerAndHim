@@ -1,0 +1,48 @@
+{
+  "checked_at": "2026-10-25T16:37:12.289350+00:00",
+  "method": "Verisign .com RDAP; 404 means no registry record; price/checkout not verified",
+  "results": [
+    {
+      "domain": "aigirla.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirla.com"
+    },
+    {
+      "domain": "aigirli.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirli.com"
+    },
+    {
+      "domain": "aigirlo.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlo.com"
+    },
+    {
+      "domain": "aigirlu.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlu.com"
+    },
+    {
+      "domain": "girliai.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/girliai.com"
+    },
+    {
+      "domain": "aigirlia.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlia.com"
+    },
+    {
+      "domain": "aigirlee.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aigirlee.com"
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "checked_at": "2026-10-25T16:41:19.862521+00:00",
+  "method": "Verisign .com RDAP; 404 means no registry record; price/checkout not verified",
+  "results": [
+    {
+      "domain": "datemii.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemii.com"
+    },
+    {
+      "domain": "datemie.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemie.com"
+    },
+    {
+      "domain": "datemiya.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemiya.com"
+    },
+    {
+      "domain": "datemeow.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemeow.com"
+    },
+    {
+      "domain": "datemimi.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemimi.com"
+    },
+    {
+      "domain": "dateera.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateera.com"
+    },
+    {
+      "domain": "dateero.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateero.com"
+    },
+    {
+      "domain": "datemoi.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemoi.com"
+    },
+    {
+      "domain": "datemila.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemila.com"
+    },
+    {
+      "domain": "datelumi.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datelumi.com"
+    },
+    {
+      "domain": "dateluv.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateluv.com"
+    },
+    {
+      "domain": "datelovy.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/datelovy.com"
+    },
+    {
+      "domain": "datedear.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datedear.com"
+    },
+    {
+      "domain": "dateaia.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateaia.com"
+    },
+    {
+      "domain": "dateaily.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateaily.com"
+    },
+    {
+      "domain": "aidately.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aidately.com"
+    },
+    {
+      "domain": "dateairi.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateairi.com"
+    },
+    {
+      "domain": "datehush.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/datehush.com"
+    }
+  ]
+}

@@ -26,6 +26,7 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeout
+from contextvars import copy_context
 from datetime import datetime
 from threading import Lock
 
@@ -909,7 +910,7 @@ Don't repeat this if `bot_name` already exists in memory.
                     schema for schema in self._build_tools()
                     if schema.get("function", {}).get("name") == "take_selfie"
                 ]
-            return [ROLEPLAY_TURN_TOOL]
+            return [self._roleplay_turn_tool()]
 
         initial_choice = self._initial_tool_choice(user_input)
         allowed_names = (
@@ -941,6 +942,10 @@ Don't repeat this if `bot_name` already exists in memory.
             schema for schema in self._build_tools()
             if schema.get("function", {}).get("name") in allowed_names
         ]
+
+    @staticmethod
+    def _roleplay_turn_tool():
+        return ROLEPLAY_TURN_TOOL
 
     @staticmethod
     def _dialogue_output_budget(user_input: str | list) -> int:
@@ -2129,7 +2134,7 @@ Don't repeat this if `bot_name` already exists in memory.
         soft_threshold = int(self.compaction_threshold * 0.8)
 
         if not self._memory_flushed_this_cycle and tokens >= soft_threshold:
-            self._bg_executor.submit(self._proactive_memory_flush)
+            self._bg_executor.submit(copy_context().run, self._proactive_memory_flush)
             self._memory_flushed_this_cycle = True
 
         if tokens < self.compaction_threshold:
@@ -2188,7 +2193,7 @@ Don't repeat this if `bot_name` already exists in memory.
         if not user_input or not isinstance(user_input, str):
             return
 
-        self._bg_executor.submit(self._do_affect_analysis, user_input, response)
+        self._bg_executor.submit(copy_context().run, self._do_affect_analysis, user_input, response)
 
     def _do_affect_analysis(self, user_input: str, response: str) -> None:
         """Actually perform the affect analysis (runs in background thread)."""
@@ -2556,7 +2561,7 @@ Don't repeat this if `bot_name` already exists in memory.
             self.roleplay.is_active()
             and not active_photo_request
         ):
-            current_tools = [ROLEPLAY_TURN_TOOL]
+            current_tools = [self._roleplay_turn_tool()]
             initial_tool_choice = {
                 "type": "function", "function": {"name": "propose_roleplay_turn"},
             }
@@ -2738,7 +2743,7 @@ Don't repeat this if `bot_name` already exists in memory.
                 results: dict[str, str] = {}
                 with ThreadPoolExecutor(max_workers=min(len(tool_calls), 16)) as pool:
                     futures = {
-                        pool.submit(self._execute_tool_call, tc): tc
+                        pool.submit(copy_context().run, self._execute_tool_call, tc): tc
                         for tc in tool_calls
                     }
                     for future in as_completed(futures, timeout=self.TOOL_TIMEOUT):
@@ -2949,7 +2954,7 @@ Don't repeat this if `bot_name` already exists in memory.
                     max_workers=min(len(tool_calls), 16),
                 ) as pool:
                     futures = {
-                        pool.submit(self._execute_tool_call, tc): tc
+                        pool.submit(copy_context().run, self._execute_tool_call, tc): tc
                         for tc in tool_calls
                     }
                     for future in as_completed(

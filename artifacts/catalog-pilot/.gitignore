@@ -1,0 +1,10 @@
+*
+!.gitignore
+!README.md
+!regression-results.json
+!portrait-prompts.json
+!portrait-prompts-v2.json
+!portrait-assets.json
+!domain-check*.json
+!check_domains.py
+!ad-prompt*.txt

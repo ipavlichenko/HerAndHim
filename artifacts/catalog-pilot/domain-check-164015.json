@@ -1,0 +1,174 @@
+{
+  "checked_at": "2026-10-25T16:40:15.745643+00:00",
+  "method": "Verisign .com RDAP; 404 means no registry record; price/checkout not verified",
+  "results": [
+    {
+      "domain": "datemi.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemi.com"
+    },
+    {
+      "domain": "midate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/midate.com"
+    },
+    {
+      "domain": "dateme.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateme.com"
+    },
+    {
+      "domain": "deardate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/deardate.com"
+    },
+    {
+      "domain": "heydate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/heydate.com"
+    },
+    {
+      "domain": "hidate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/hidate.com"
+    },
+    {
+      "domain": "dateai.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateai.com"
+    },
+    {
+      "domain": "aidate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aidate.com"
+    },
+    {
+      "domain": "datemira.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemira.com"
+    },
+    {
+      "domain": "datemuse.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemuse.com"
+    },
+    {
+      "domain": "datelia.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datelia.com"
+    },
+    {
+      "domain": "dateluna.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateluna.com"
+    },
+    {
+      "domain": "datenia.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datenia.com"
+    },
+    {
+      "domain": "datevibe.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datevibe.com"
+    },
+    {
+      "domain": "datejoy.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datejoy.com"
+    },
+    {
+      "domain": "dateplay.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/dateplay.com"
+    },
+    {
+      "domain": "girldate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/girldate.com"
+    },
+    {
+      "domain": "dategirl.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/dategirl.com"
+    },
+    {
+      "domain": "datewithai.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datewithai.com"
+    },
+    {
+      "domain": "aidateme.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/aidateme.com"
+    },
+    {
+      "domain": "aimydate.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/aimydate.com"
+    },
+    {
+      "domain": "myaidate.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/myaidate.com"
+    },
+    {
+      "domain": "heyaidate.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/heyaidate.com"
+    },
+    {
+      "domain": "dearaidate.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/dearaidate.com"
+    },
+    {
+      "domain": "datemio.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datemio.com"
+    },
+    {
+      "domain": "datenami.com",
+      "http": 404,
+      "status": "no_registry_record",
+      "source": "https://rdap.verisign.com/com/v1/domain/datenami.com"
+    },
+    {
+      "domain": "datelya.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/datelya.com"
+    },
+    {
+      "domain": "daterly.com",
+      "http": 200,
+      "status": "registered",
+      "source": "https://rdap.verisign.com/com/v1/domain/daterly.com"
+    }
+  ]
+}

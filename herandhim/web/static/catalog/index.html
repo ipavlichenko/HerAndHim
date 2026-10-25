@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#11131b">
+  <meta name="description" content="Твоя фантазия — в твоём темпе. Ролевые истории с вымышленной взрослой AI-подругой: выбирай сюжет, задавай направление и обозначай границы. 18+.">
+  <title>AIGirla · Выбери свою героиню</title>
+  <link rel="stylesheet" href="catalog.css">
+  <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+  <script src="catalog.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><a class="wordmark" href="./" aria-label="AIGirla — каталог">AIGirla<span>✦</span></a><span class="disclosure">AI-персонажи · 18+</span></header>
+    <section class="intro"><p class="eyebrow">ЭРОТИЧЕСКИЕ ФАНТАЗИИ С AI-ПОДРУГОЙ · 18+</p><h1>Твоя фантазия.<br><em>В твоём темпе.</em></h1><p class="lead">О некоторых желаниях непросто заговорить.<br>Здесь можно начать с вымышленной истории —<br class="desktop-break"> и самому выбрать, куда она приведёт.</p><a class="telegram-cta" data-bot-link href="https://t.me/sara_herandhim_bot"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-3.5 18-6-4.5-3.5 3v-6L21 3ZM8 13.5 3 11l18-8L8 13.5Z"/></svg><span>Открыть в Telegram</span><span class="cta-arrow" aria-hidden="true">↗</span></a><div class="benefits" aria-label="Как устроено общение"><div><strong>Можно говорить прямо</strong><span>О том, что любопытно, чего хочется и что не подходит.</span></div><div><strong>Темп выбираешь ты</strong><span>Меняй направление, замедляйся или останавливай сцену.</span></div><div><strong>Не нужно искать первую фразу</strong><span>Выбери героиню и готовый сюжет. Дальше — твой ход.</span></div></div><div class="meta"><span>20 героинь</span><i></i><span>10 сюжетов</span><i></i><span>Бесплатный пилот</span></div></section>
+    <section aria-label="Выбор героини">
+      <div class="filters"><div class="tabs" role="group" aria-label="Стиль персонажа"><button type="button" class="selected" data-style="all" aria-pressed="true">Все</button><button type="button" data-style="real" aria-pressed="false">Реализм</button><button type="button" data-style="anime" aria-pressed="false">Аниме</button></div><label class="age-label"><span class="sr-only">Возраст героини</span><select id="age"><option value="all">Любой возраст</option><option value="20">20–29 лет</option><option value="30">30–39 лет</option><option value="40">40–49 лет</option><option value="50">50+ лет</option></select></label></div>
+      <p id="result-count" class="count" aria-live="polite">Загружаем героинь…</p>
+      <div class="grid" id="grid"></div><p id="error" hidden>Не удалось загрузить каталог. <button id="reload" type="button">Попробовать ещё раз</button></p>
+      <p id="empty" hidden>В этом возрасте пока нет героинь выбранного стиля. Попробуй другой фильтр.</p>
+    </section>
+    <footer><p>Вымышленные взрослые персонажи. Общение с AI.</p><p>История с каждой героиней сохраняется. Новый сюжет начинается заново.</p><details class="privacy"><summary>Кто видит переписку</summary><p>У каждого пользователя своя история. Другие пользователи сервиса её не видят. Сообщения проходят через Telegram, сохраняются на сервере сервиса и передаются AI-провайдеру для ответа. У оператора сервиса есть технический доступ к данным; это не анонимный чат и не сквозное шифрование.</p></details><a id="bot-link" data-bot-link href="https://t.me/sara_herandhim_bot">Открыть бота в Telegram ↗</a></footer>
+  </main>
+  <dialog id="profile" aria-labelledby="profile-name"><button id="close" class="close" aria-label="Закрыть карточку" type="button">×</button><img id="profile-image" alt=""><div class="profile-body"><p id="profile-style" class="eyebrow"></p><h2 id="profile-name"></h2><p id="profile-tagline" class="tagline"></p><p id="profile-description"></p><div class="tags" id="profile-interests"></div><p class="profile-note">Выбери одну из 10 историй — или вернись к вашей текущей.</p><button id="choose" class="choose" type="button">Выбрать героиню</button><p id="choose-status" class="choose-status" aria-live="polite"></p></div></dialog>
+</body>
+</html>

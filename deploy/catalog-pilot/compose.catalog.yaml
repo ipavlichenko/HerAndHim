@@ -1,0 +1,23 @@
+services:
+  catalogue:
+    image: ${CATALOG_IMAGE:?Set an immutable verified candidate image}
+    entrypoint: ["/usr/bin/tini", "--", "python", "-m", "uvicorn"]
+    command: ["herandhim.catalog.web:app", "--host", "0.0.0.0", "--port", "7789"]
+    ports:
+      - "127.0.0.1:7789:7789"
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /data:size=16m,uid=10001,gid=10001,mode=0700
+    environment:
+      HERANDHIM_HOME: /data
+      PYTHONDONTWRITEBYTECODE: "1"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7789/healthz', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

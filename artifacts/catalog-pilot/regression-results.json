@@ -1,0 +1,58 @@
+[
+  {
+    "file": "test_catalog_pilot.py",
+    "exit_code": 0,
+    "output": "228 passed in 1.24s",
+    "latest_followups": "player name is not renamed; proactive delivery uses catalogue keyboard and honors hidden preference"
+  },
+  {
+    "file": "test_roleplay_scene.py",
+    "exit_code": 0,
+    "output": "..........................................                               [100%]\n42 passed in 1.04s\n"
+  },
+  {
+    "file": "test_output_language.py",
+    "exit_code": 0,
+    "output": "...............................                                          [100%]\n31 passed in 0.97s\n"
+  },
+  {
+    "file": "test_telegram_transport_foundation.py",
+    "exit_code": 0,
+    "output": "...................                                                      [100%]\n19 passed in 1.04s\n"
+  },
+  {
+    "file": "test_telegram_command_localization.py",
+    "exit_code": 0,
+    "output": ".................                                                        [100%]\n17 passed in 0.47s\n"
+  },
+  {
+    "file": "test_outbound_contract.py",
+    "exit_code": 0,
+    "output": "..............................................                           [100%]\n46 passed in 0.83s\n"
+  },
+  {
+    "file": "test_compaction.py",
+    "exit_code": 0,
+    "output": "......................................                                   [100%]\n38 passed in 0.46s\n"
+  },
+  {
+    "file": "test_memory_consolidation.py",
+    "exit_code": 0,
+    "output": "..................                                                       [100%]\n18 passed in 0.52s\n"
+  },
+  {
+    "file": "test_telegram_photo_foundation.py",
+    "exit_code": 1,
+    "output": ".....F                                                                   [100%]\n=================================== FAILURES ===================================\n_______ test_mock_transport_vision_failure_is_sanitized_and_not_retried ________\n\ntmp_path = PosixPath('/private/var/folders/71/_gsw51y944q112xqpsh5n3cm0000gp/T/pytest-of-iliapavlichenko/pytest-805/test_mock_transport_vision_fai0')\n\n    def test_mock_transport_vision_failure_is_sanitized_and_not_retried(tmp_path):\n        calls = 0\n    \n        def handler(_request: httpx.Request) -> httpx.Response:\n            nonlocal calls\n            calls += 1\n            return httpx.Response(503, text=\"echoed owner photo and sk-or-provider-secret\")\n    \n        trace_path = tmp_path / \"trace.jsonl\"\n        provider = OpenAICompatibleProvider(\n            api_key=\"sk-or-synthetic-photo-key\",\n            base_url=\"https://mock.openrouter.test/v1\",\n            model_name=\"openai/gpt-6.1-sol\",\n            supports_images=True,\n            outbound_policy=_vision_policy(),\n            outbound_trace=OutboundTrace(trace_path),\n            cost_ledger=CostLedger(tmp_path / \"costs.sqlite3\"),\n        )\n        provider.client = OpenAI(\n            api_key=\"synthetic\",\n            base_url=\"https://mock.openrouter.test/v1\",\n            max_retries=0,\n            http_client=httpx.Client(transport=httpx.MockTransport(handler)),\n        )\n        payload = base64.b64encode(_jpeg_bytes()).decode(\"ascii\")\n        try:\n>           provider.chat(\n                messages=[{\"role\": \"user\", \"content\": [\n                    {\"type\": \"text\", \"text\": \"Describe the current image.\"},\n                    {\"type\": \"image_url\", \"image_url\": {\n                        \"url\": f\"data:image/jpeg;base64,{payload}\",\n                    }},\n                ]}],\n                purpose=\"vision\",\n            )\n\ntests/test_telegram_photo_foundation.py:432: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <herandhim.core.llm.openai_compatible.OpenAICompatibleProvider object at 0x10c1bbef0>\nmessages = [{'role': 'user', 'content': [{'type': 'text', 'text': 'Describe the current image.'}, {'type': 'image_url', 'image_ur...nqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDzSiiivpT7AKKKKACiiigAooooA//Z'}}]}]\ntools = None, tool_choice = 'auto', purpose = 'vision', kwargs = {}\n\n    def chat(\n        self,\n        messages: list[dict[str, Any]],\n        tools: list[dict[str, Any]] | None = None,\n        tool_choice: Any = \"auto\",\n        purpose: OutboundPurpose | str | None = None,\n        **kwargs: Any,\n    ) -> Any:\n        if self.outbound_policy is not None:\n            reservation_id: str | None = None\n            request_id = uuid4().hex\n            started = time.monotonic()\n            try:\n                req = self._secured_request(messages, tools, tool_choice, purpose, kwargs,\n                                            trace_request_id=request_id)\n                policy = self.outbound_policy.for_purpose(purpose)\n                assert self._cost_ledger is not None\n                reservation_id = self._cost_ledger.reserve(\n                    policy.purpose.value,\n                    policy.max_cost_usd_per_call,\n                    policy.max_cost_usd_per_day,\n                )\n                resp = self.client.chat.completions.create(**req)\n            except PolicyError as exc:\n                self._trace_reject(purpose, str(exc), request_id=request_id)\n                raise\n            except Exception as exc:\n>               raise self._transport_error(exc, purpose, request_id, started) from None\nE               herandhim.core.outbound.policy.PolicyError: provider_unavailable; request_id=cc3f018404134d2da7f6003295667609\n\nherandhim/core/llm/openai_compatible.py:174: PolicyError\n\nDuring handling of the above exception, another exception occurred:\n\ntmp_path = PosixPath('/private/var/folders/71/_gsw51y944q112xqpsh5n3cm0000gp/T/pytest-of-iliapavlichenko/pytest-805/test_mock_transport_vision_fai0')\n\n    def test_mock_transport_vision_failure_is_sanitized_and_not_retried(tmp_path):\n        calls = 0\n    \n        def handler(_request: httpx.Request) -> httpx.Response:\n            nonlocal calls\n            calls += 1\n            return httpx.Response(503, text=\"echoed owner photo and sk-or-provider-secret\")\n    \n        trace_path = tmp_path / \"trace.jsonl\"\n        provider = OpenAICompatibleProvider(\n            api_key=\"sk-or-synthetic-photo-key\",\n            base_url=\"https://mock.openrouter.test/v1\",\n            model_name=\"openai/gpt-6.1-sol\",\n            supports_images=True,\n            outbound_policy=_vision_policy(),\n            outbound_trace=OutboundTrace(trace_path),\n            cost_ledger=CostLedger(tmp_path / \"costs.sqlite3\"),\n        )\n        provider.client = OpenAI(\n            api_key=\"synthetic\",\n            base_url=\"https://mock.openrouter.test/v1\",\n            max_retries=0,\n            http_client=httpx.Client(transport=httpx.MockTransport(handler)),\n        )\n        payload = base64.b64encode(_jpeg_bytes()).decode(\"ascii\")\n        try:\n            provider.chat(\n                messages=[{\"role\": \"user\", \"content\": [\n                    {\"type\": \"text\", \"text\": \"Describe the current image.\"},\n                    {\"type\": \"image_url\", \"image_url\": {\n                        \"url\": f\"data:image/jpeg;base64,{payload}\",\n                    }},\n                ]}],\n                purpose=\"vision\",\n            )\n        except PolicyError as exc:\n>           assert str(exc) == \"provider_request_failed\"\nE           AssertionError: assert 'provider_una...6003295667609' == 'provider_request_failed'\nE             \nE             - provider_request_failed\nE             + provider_unavailable; request_id=cc3f018404134d2da7f6003295667609\n\ntests/test_telegram_photo_foundation.py:442: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_telegram_photo_foundation.py::test_mock_transport_vision_failure_is_sanitized_and_not_retried\n1 failed, 5 passed in 0.93s\n"
+  },
+  {
+    "file": "test_telegram_selfie_foundation.py",
+    "exit_code": 0,
+    "output": ".........................                                                [100%]\n25 passed in 0.55s\n"
+  },
+  {
+    "file": "test_telegram_voice_foundation.py",
+    "exit_code": 0,
+    "output": ".......                                                                  [100%]\n7 passed in 0.41s\n"
+  }
+]

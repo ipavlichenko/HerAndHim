@@ -1,0 +1,77 @@
+{
+  "checked_at": "2026-10-25T16:17:17.782052+00:00",
+  "results": [
+    {
+      "domain": "dearplay.com",
+      "http": 200,
+      "status": "registered",
+      "events": [
+        {
+          "eventAction": "registration",
+          "eventDate": "2018-07-22T18:38:22Z"
+        },
+        {
+          "eventAction": "expiration",
+          "eventDate": "2027-07-22T18:38:22Z"
+        },
+        {
+          "eventAction": "last changed",
+          "eventDate": "2026-07-23T08:41:32Z"
+        },
+        {
+          "eventAction": "last update of RDAP database",
+          "eventDate": "2026-10-25T16:16:58Z"
+        }
+      ],
+      "source": "https://rdap.verisign.com/com/v1/domain/dearplay.com"
+    },
+    {
+      "domain": "heymi.com",
+      "http": 200,
+      "status": "registered",
+      "events": [
+        {
+          "eventAction": "registration",
+          "eventDate": "2015-07-17T18:06:47Z"
+        },
+        {
+          "eventAction": "expiration",
+          "eventDate": "2027-07-17T18:06:47Z"
+        },
+        {
+          "eventAction": "last changed",
+          "eventDate": "2026-07-18T08:34:25Z"
+        },
+        {
+          "eventAction": "last update of RDAP database",
+          "eventDate": "2026-10-25T16:16:58Z"
+        }
+      ],
+      "source": "https://rdap.verisign.com/com/v1/domain/heymi.com"
+    },
+    {
+      "domain": "mistory.com",
+      "http": 200,
+      "status": "registered",
+      "events": [
+        {
+          "eventAction": "registration",
+          "eventDate": "2024-08-17T18:37:00Z"
+        },
+        {
+          "eventAction": "expiration",
+          "eventDate": "2027-08-17T18:37:00Z"
+        },
+        {
+          "eventAction": "last changed",
+          "eventDate": "2026-08-25T09:04:26Z"
+        },
+        {
+          "eventAction": "last update of RDAP database",
+          "eventDate": "2026-10-25T16:16:58Z"
+        }
+      ],
+      "source": "https://rdap.verisign.com/com/v1/domain/mistory.com"
+    }
+  ]
+}
