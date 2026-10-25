@@ -156,7 +156,13 @@ async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) 
     an unusually long scene turn may still require multiple messages.
     """
     if not roleplay:
-        return await send_burst(bot, chat_id, text)
+        return await send_burst(
+            bot,
+            chat_id,
+            text,
+            renderer=_roleplay_to_html,
+            parse_mode="HTML",
+        )
     sent = False
     for chunk in _split_message(text):
         await bot.send_message(
@@ -221,7 +227,11 @@ class TelegramBot:
         if self._app is None:
             logger.warning("[Telegram] send_message called before bot is running")
             return
-        await self._app.bot.send_message(chat_id=chat_id, text=text)
+        await self._app.bot.send_message(
+            chat_id=chat_id,
+            text=_roleplay_to_html(text),
+            parse_mode="HTML",
+        )
 
     async def send_photo(
         self,

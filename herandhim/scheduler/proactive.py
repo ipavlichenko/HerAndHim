@@ -371,6 +371,12 @@ def _proactive_chat(agent, prompt: str) -> str:
     return fn(prompt) if callable(fn) else agent.chat(prompt)
 
 
+def _has_active_roleplay(agent) -> bool:
+    """Proactive work must never advance or speak inside an owner-led scene."""
+    roleplay = getattr(agent, "roleplay", None)
+    return bool(roleplay is not None and roleplay.is_active())
+
+
 class ProactiveMessenger:
     """Probabilistic proactive messaging via Telegram, with Soul Mate emotional gating."""
 
@@ -447,6 +453,17 @@ class ProactiveMessenger:
             # and before any evaluator/LLM work.
             if self._transport.silence_active(session_id, now=now):
                 logger.info("[Proactive] no-op: active owner silence boundary")
+                return
+
+            # An owner-led scene is an exclusive conversational transaction.
+            # Do not recover queued proactive text or run proactive inference
+            # while it is active: either can interleave with or advance it.
+            agent = self._sm.get_or_create(session_id)
+            if _has_active_roleplay(agent):
+                discarded = self._transport.discard_pending(session_id)
+                logger.info("[Proactive] no-op: owner role-play scene is active")
+                if discarded:
+                    logger.info("[Proactive] Discarded %d stale queued text(s).", discarded)
                 return
 
             # Recover a previously accepted candidate before considering a new
@@ -542,6 +559,9 @@ class ProactiveMessenger:
     ) -> None:
         session_id = self._chat_session_id(chat_id)
         agent = self._sm.get_or_create(session_id)
+        if _has_active_roleplay(agent):
+            logger.info("[Proactive] Suppressed while an owner role-play scene is active.")
+            return
         # Built after the agent exists so it can read the affect graph for a
         # specific follow-up.
         prompt = _build_prompt(now, sentiment_ctx, agent=agent)
@@ -623,6 +643,9 @@ class ProactiveMessenger:
         prompt = _build_wish_prompt(wish.text, now)
         session_id = self._chat_session_id(chat_id)
         agent = self._sm.get_or_create(session_id)
+        if _has_active_roleplay(agent):
+            logger.info("[Proactive] Wish suppressed while an owner role-play scene is active.")
+            return False
         loop = asyncio.get_event_loop()
         try:
             async with self._sm.acquire(session_id):

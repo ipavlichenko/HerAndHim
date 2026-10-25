@@ -681,12 +681,43 @@ def test_ordinary_companion_delivery_retains_humanized_burst(monkeypatch):
 
     calls = []
 
-    async def _burst(*args):
-        calls.append(args)
+    async def _burst(*args, **kwargs):
+        calls.append((args, kwargs))
         return True
 
     monkeypatch.setattr(module, "send_burst", _burst)
 
     assert asyncio.run(module._send_companion_text(object(), 42, "one\n\ntwo", roleplay=False))
     assert len(calls) == 1
-    assert calls[0][1:] == (42, "one\n\ntwo")
+    args, kwargs = calls[0]
+    assert args[1:] == (42, "one\n\ntwo")
+    assert kwargs == {"renderer": module._roleplay_to_html, "parse_mode": "HTML"}
+
+
+def test_generic_telegram_push_uses_the_same_safe_action_renderer(tmp_path):
+    from herandhim.channels.telegram_bot import TelegramBot
+    from herandhim.core.telegram_transport import TelegramTransportStore
+
+    class _Api:
+        def __init__(self):
+            self.sent = []
+
+        async def send_message(self, **kwargs):
+            self.sent.append(kwargs)
+
+    api = _Api()
+    telegram = TelegramBot(
+        SimpleNamespace(),
+        "synthetic-not-a-real-token",
+        allowed_users=[42],
+        transport_store=TelegramTransportStore(tmp_path / "transport.sqlite3"),
+    )
+    telegram._app = SimpleNamespace(bot=api)
+
+    asyncio.run(telegram.send_message(42, "*Sara wakes.*\n\nHi <there>."))
+
+    assert api.sent == [{
+        "chat_id": 42,
+        "text": "<i>Sara wakes.</i>\n\nHi &lt;there&gt;.",
+        "parse_mode": "HTML",
+    }]

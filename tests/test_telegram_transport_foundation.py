@@ -322,6 +322,37 @@ def test_active_silence_blocks_inference_and_pending_delivery(tmp_path):
     assert store.pending_count("telegram:42") == 1
 
 
+def test_active_roleplay_blocks_pending_and_new_proactive_text(tmp_path, monkeypatch):
+    from herandhim.core.telegram_transport import TelegramTransportStore
+    from herandhim.scheduler.proactive import ProactiveMessenger
+
+    class ActiveAgent:
+        roleplay = SimpleNamespace(is_active=lambda: True)
+
+        def chat_proactive(self, _prompt):
+            raise AssertionError("proactive inference must not enter an active scene")
+
+    class Sessions:
+        agent = ActiveAgent()
+
+        def get_or_create(self, _session_id):
+            return self.agent
+
+        def get(self, _session_id):
+            return self.agent
+
+    store = TelegramTransportStore(tmp_path / "transport.sqlite3")
+    store.enqueue("telegram:42", 42, "queued before scene")
+    bot = _DeliveryBot()
+    messenger = ProactiveMessenger(Sessions(), bot, store)
+    monkeypatch.setattr(messenger, "_maybe_send_selfie", lambda _chat_id: _async_none())
+
+    asyncio.run(messenger._tick(42))
+
+    assert bot.sent == []
+    assert store.pending_count("telegram:42") == 0
+
+
 def test_ambiguous_failed_send_is_not_retried(tmp_path):
     from herandhim.core.telegram_transport import TelegramTransportStore
     from herandhim.scheduler.proactive import ProactiveMessenger

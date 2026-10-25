@@ -78,7 +78,14 @@ def split_burst(text: str, max_parts: int = 3) -> list[str]:
     return [p[:4096] for p in paras]
 
 
-async def send_burst(bot, chat_id, text: str) -> bool:
+async def send_burst(
+    bot,
+    chat_id,
+    text: str,
+    *,
+    renderer=None,
+    parse_mode: str | None = None,
+) -> bool:
     """Send a reply as 1–3 consecutive bubbles with human typing gaps.
 
     Between bubbles: a typing action + a short pause scaled to the length of
@@ -96,7 +103,11 @@ async def send_burst(bot, chat_id, text: str) -> bool:
             gap = 0.8 + min(len(part), 200) * 0.012 * random.uniform(0.6, 1.4)
             await asyncio.sleep(min(gap, 3.5))
         try:
-            await bot.send_message(chat_id=chat_id, text=part)
+            rendered = renderer(part) if callable(renderer) else part
+            kwargs = {"chat_id": chat_id, "text": rendered}
+            if parse_mode:
+                kwargs["parse_mode"] = parse_mode
+            await bot.send_message(**kwargs)
             sent = True
         except Exception as exc:
             logger.warning("[humanize] burst send failed (part %d/%d): %s",

@@ -305,7 +305,7 @@ def test_exact_vision_route_persists_reply_without_image_after_restart(tmp_path,
     monkeypatch.setattr("herandhim.channels.telegram_bot.reply_delay", lambda _reply: 0)
     delivered: list[str] = []
 
-    async def capture_burst(_bot, _chat_id, text):
+    async def capture_burst(_bot, _chat_id, text, **_kwargs):
         delivered.append(text)
 
     monkeypatch.setattr("herandhim.channels.telegram_bot.send_burst", capture_burst)

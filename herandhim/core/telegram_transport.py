@@ -369,6 +369,14 @@ class TelegramTransportStore:
             ).fetchone()
             return int(row["n"])
 
+    def discard_pending(self, session_id: str) -> int:
+        """Discard unsent proactive text that would be stale after a scene starts."""
+        with self._lock, self._connect() as conn:
+            return conn.execute(
+                "DELETE FROM deliveries WHERE session_id=? AND status='pending'",
+                (session_id,),
+            ).rowcount
+
     def enqueue_media(
         self,
         session_id: str,
