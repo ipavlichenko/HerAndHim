@@ -1,0 +1,77 @@
+{
+  "revision": "a0f326530c0a6b1eea4ddd3c93dca8597701a2a5",
+  "image": "sha256:fab0d1411c3afec023ee8185ead97ad67506fb74124acb0a028c9bfda890c510",
+  "before": {
+    "id": "3a9dfb9383169186b7e0eaef786006f3a6344f4fbf3fdb3b771ebff72a2dee81",
+    "image": "sha256:48ddf4c08d0bc00ca80b3d27b234cf432fc1405556b2380587aa3883664015ef",
+    "started": "2026-10-25T17:11:45.735346332Z",
+    "restarts": 0,
+    "health": "healthy"
+  },
+  "rollback_image": "sha256:48ddf4c08d0bc00ca80b3d27b234cf432fc1405556b2380587aa3883664015ef",
+  "rollback_tag": "herandhim-sara:rollback-pre-followup-a0f3265",
+  "public_access": false,
+  "catalog_url": "",
+  "live_inference_calls_by_rollout": 0,
+  "telegram_messages_by_rollout": 0,
+  "checks_passed": 404,
+  "backup": {
+    "archive": "sara-20261025T180807Z.tar.gz",
+    "createdAt": "20261025T180807Z",
+    "sha256": "d34a2faa81d798d68ad7cd0735078cc265055510eb4688b46609b58b941119ae",
+    "bytes": 2367314
+  },
+  "restore_verified": true,
+  "first_start": {
+    "id": "d172257dcd291153b6f53bfddc4e655a3072f7c7017c309e6fea4ae843ba76b9",
+    "image": "sha256:fab0d1411c3afec023ee8185ead97ad67506fb74124acb0a028c9bfda890c510",
+    "started": "2026-10-25T18:08:09.30400776Z",
+    "restarts": 0,
+    "health": "healthy"
+  },
+  "controlled_restart": {
+    "id": "d172257dcd291153b6f53bfddc4e655a3072f7c7017c309e6fea4ae843ba76b9",
+    "image": "sha256:fab0d1411c3afec023ee8185ead97ad67506fb74124acb0a028c9bfda890c510",
+    "started": "2026-10-25T18:08:41.369271614Z",
+    "restarts": 0,
+    "health": "healthy"
+  },
+  "changed_files_during_rollout": [],
+  "existing_content_unchanged": true,
+  "config_unchanged": true,
+  "horror_unchanged": true,
+  "status": "PASS",
+  "checked_at": "2026-10-25T18:09:14.784947+00:00",
+  "telegram": {
+    "username": "sara_herandhim_bot",
+    "commands": [
+      "start",
+      "characters",
+      "stories",
+      "menu",
+      "hide",
+      "name",
+      "pause",
+      "resume"
+    ],
+    "webhook": false,
+    "display_name": "AIGirla"
+  },
+  "delivery_enabled": true,
+  "existing_cost_ledger_preserved": true,
+  "catalog_players": 1,
+  "name_confirmation_table_present": true,
+  "recent_error_markers": {
+    "Traceback": 0,
+    " ERROR ": 0,
+    "Conflict:": 0,
+    "Catalog turn failed": 0,
+    "Catalog initiative failed": 0
+  },
+  "postcheck_at": "2026-10-25T18:15:22.863937+00:00",
+  "retention": {
+    "policy": "current + two rollbacks + all container images + Python + required ancestors",
+    "older_rollbacks": "retained as required ancestors",
+    "temporary_uploads_removed": true
+  }
+}
