@@ -156,7 +156,7 @@ def test_only_owner_creates_one_persistent_dialogue_turn_after_restart(tmp_path,
         return None
 
     monkeypatch.setattr(module, "maybe_react", no_op)
-    monkeypatch.setattr(module, "send_burst", no_op)
+    monkeypatch.setattr(module, "_send_companion_text", no_op)
     monkeypatch.setattr(module, "reply_delay", lambda _reply: 0)
 
     path = tmp_path / "transport.sqlite3"

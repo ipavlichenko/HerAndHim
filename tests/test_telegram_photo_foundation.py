@@ -308,7 +308,7 @@ def test_exact_vision_route_persists_reply_without_image_after_restart(tmp_path,
     async def capture_burst(_bot, _chat_id, text, **_kwargs):
         delivered.append(text)
 
-    monkeypatch.setattr("herandhim.channels.telegram_bot.send_burst", capture_burst)
+    monkeypatch.setattr("herandhim.channels.telegram_bot._send_companion_text", capture_burst)
     counters = {"get_file": 0, "download": 0}
     update = _update(_jpeg_bytes(metadata=True, size=(4096, 64)), counters)
     asyncio.run(bot._handle_message(update, SimpleNamespace(bot=SimpleNamespace())))

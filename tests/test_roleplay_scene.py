@@ -685,7 +685,7 @@ def test_roleplay_delivery_is_one_atomic_telegram_message(monkeypatch):
         burst_calls.append(args)
         return True
 
-    monkeypatch.setattr(module, "send_burst", _burst)
+    monkeypatch.setattr("herandhim.core.humanize.send_burst", _burst)
     text = "*Сара открывает дверь.*\n\nСемь минут. <Заходи>."
 
     assert asyncio.run(module._send_companion_text(bot, 42, text, roleplay=True))
@@ -706,22 +706,43 @@ def test_unpaired_roleplay_marker_is_escaped_without_inventing_formatting():
     )
 
 
-def test_ordinary_companion_delivery_retains_humanized_burst(monkeypatch):
+def test_inactive_scene_reply_is_one_message_without_exit_keyboard(monkeypatch):
     from herandhim.channels import telegram_bot as module
 
-    calls = []
+    sent = []
 
     async def _burst(*args, **kwargs):
-        calls.append((args, kwargs))
-        return True
+        raise AssertionError("Scene status must never enable burst splitting")
 
-    monkeypatch.setattr(module, "send_burst", _burst)
+    monkeypatch.setattr("herandhim.core.humanize.send_burst", _burst)
 
-    assert asyncio.run(module._send_companion_text(object(), 42, "one\n\ntwo", roleplay=False))
-    assert len(calls) == 1
-    args, kwargs = calls[0]
-    assert args[1:] == (42, "one\n\ntwo")
-    assert kwargs == {"renderer": module._roleplay_to_html, "parse_mode": "HTML"}
+    class Bot:
+        async def send_message(self, **kwargs):
+            sent.append(kwargs)
+
+    text = "*Сара закрывает книгу.*\n\nОбсудим <план>?\n\n*Она ждёт ответа.*"
+    assert asyncio.run(module._send_companion_text(Bot(), 42, text, roleplay=False))
+    assert sent == [{
+        "chat_id": 42,
+        "text": "<i>Сара закрывает книгу.</i>\n\nОбсудим &lt;план&gt;?\n\n<i>Она ждёт ответа.</i>",
+        "parse_mode": "HTML",
+    }]
+
+
+def test_companion_delivery_preserves_text_above_platform_limit():
+    from herandhim.channels import telegram_bot as module
+
+    sent = []
+
+    class Bot:
+        async def send_message(self, **kwargs):
+            sent.append(kwargs["text"])
+
+    text = "а" * 4100
+    assert asyncio.run(module._send_companion_text(Bot(), 42, text, roleplay=False))
+    assert len(sent) == 2
+    assert all(len(part) <= 4096 for part in sent)
+    assert "".join(sent) == text
 
 
 def test_generic_telegram_push_uses_the_same_safe_action_renderer(tmp_path):

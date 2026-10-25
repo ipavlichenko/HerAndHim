@@ -67,7 +67,7 @@ from telegram.ext import (
 )
 
 from .. import config
-from ..core.humanize import humanize_gap, maybe_react, reply_delay, send_burst
+from ..core.humanize import humanize_gap, maybe_react, reply_delay
 from ..core.roleplay import (
     ROLEPLAY_EXIT_BUTTON_TEXT,
     ROLEPLAY_SCENARIOS,
@@ -184,29 +184,21 @@ def _roleplay_to_html(text: str) -> str:
 
 
 async def _send_companion_text(bot, chat_id: int, text: str, *, roleplay: bool) -> bool:
-    """Deliver one logical role-play turn as one Telegram bubble.
+    """Deliver one logical companion reply without conversational burst splitting.
 
-    Ordinary companion chat retains the humanized 1–3 bubble burst. A role-play
-    turn must stay atomic: otherwise the user can reply between parts and the
-    remaining bubbles appear after their message, looking like duplicated or
-    competing answers. Telegram's hard 4096-character limit is the sole reason
-    an unusually long scene turn may still require multiple messages.
+    Scene state selects the keyboard, never the number of messages. A completed
+    scene can still be discussed in ordinary chat; splitting that response makes
+    one generated turn look like several unsolicited turns. Only the platform
+    length limit may require multiple messages.
     """
-    if not roleplay:
-        return await send_burst(
-            bot,
-            chat_id,
-            text,
-            renderer=_roleplay_to_html,
-            parse_mode="HTML",
-        )
     sent = False
     for chunk in _split_message(text):
+        markup = {"reply_markup": _roleplay_exit_keyboard()} if roleplay else {}
         await bot.send_message(
             chat_id=chat_id,
             text=_roleplay_to_html(chunk),
             parse_mode="HTML",
-            reply_markup=_roleplay_exit_keyboard(),
+            **markup,
         )
         sent = True
     return sent
@@ -651,8 +643,7 @@ class TelegramBot:
 
         # Companion mode (a soul/persona is configured) delivers like a real
         # person texting: selective emoji reactions, absence awareness, a
-        # human pause, and 1–3 message bubbles — the same behaviour as the
-        # hosted worker, via the shared core.humanize module. Bare-assistant
+        # human pause, and one logical reply per message. Bare-assistant
         # sessions keep the streaming/edit-in-place flow below.
         is_companion = bool(getattr(agent, "soul_instruction", "")
                             or getattr(agent, "persona_instruction", ""))
@@ -736,7 +727,7 @@ class TelegramBot:
                 self._register_file_sender(loop, chat_id)
                 if is_companion or reply_in_kind:
                     # Humanized delivery: full reply, then a length-scaled
-                    # pause + 1-3 bubbles. (No live edit-in-place — watching
+                    # pause + one message. (No live edit-in-place — watching
                     # a message rewrite itself reads as a bot, not a partner.)
                     # A voice-note turn also lands here even in assistant
                     # mode: a voice reply needs the finished text, not a
