@@ -1,7 +1,8 @@
-# Visual catalogue pilot — local candidate
+# AIGirla catalogue — owner testing rollout
 
-This increment extends the current Sarah bot. The production deployment has not
-been changed. The public catalogue is a separate static-only service; never
+This increment turns the current Telegram bot into the AIGirla multi-character
+app. Sarah is one of twenty characters, not a separate personal product.
+The public catalogue is a separate static-only service; never
 publish the private dashboard on port 7788.
 
 ## Local preview
@@ -21,13 +22,13 @@ original generated PNGs are retained separately as design evidence.
 
 ## Configuration to merge into the existing bot settings
 
-Only add this block. Replace the two placeholders before enabling it:
+Only add this block. Supply the existing numeric account ID for data migration:
 
 ```json
 {
   "catalog": {
     "enabled": true,
-    "url": "https://YOUR-APPROVED-DOMAIN/",
+    "url": "",
     "legacyOwnerId": "REPLACE_WITH_EXISTING_NUMERIC_OWNER_ID",
     "publicAccess": false,
     "maxUsers": 50
@@ -35,10 +36,16 @@ Only add this block. Replace the two placeholders before enabling it:
 }
 ```
 
-`legacyOwnerId` must be the numeric Telegram user ID of the current Sarah owner,
+An empty `url` enables the native Telegram catalogue: twenty character buttons
+use the same IDs, episode store and selection logic as the Mini App. A configured
+URL must be a real verified HTTPS URL; never insert a placeholder. Replace the
+empty value when the independent landing task delivers the HTTPS catalogue.
+
+`legacyOwnerId` must be the numeric Telegram user ID of the existing tester,
 not the bot ID. A string placeholder deliberately fails validation. Preserve
 the existing `channels.telegram.allowedUsers`, provider settings, credentials,
-cost limits and privacy contract. Do not run the full Sarah installer: it would
+cost limits and privacy contract. The migration preserves the old episode but
+does not auto-select a character or bypass adult confirmation. Do not run the full installer: it would
 also rewrite identity/configuration that this rollout must preserve.
 
 Start with `publicAccess: false`. Only set it to true after an approved rollout
@@ -63,15 +70,17 @@ from its catalogue button after the name and adult confirmation.
 ## Rollout and acceptance checklist
 
 1. Read the current production revision/config read-only and confirm the actual
-   owner ID. Obtain an approved HTTPS domain and concrete rollout authorization.
+   tester ID. The user's AIGirla launch request authorizes the closed owner test.
+   HTTPS is needed for the Mini App, not for the native Telegram selection.
 2. Back up the entire existing data/config directory while the bot is stopped;
    verify restoration to a separate path and record checksums of identity,
    owner history and active scene. Retain the current image for rollback.
 3. Build an immutable candidate from this branch without updating dependencies.
    Validate imports, the static app, health endpoint, and package portrait files.
-4. Start the static service and verify HTTPS on a phone. Merge only the catalogue
-   block with public access still false, then restart the single existing bot.
-5. In Telegram verify the actual keyboard Mini App: name → 18+ → selection → ten
+4. Merge only the catalogue block with public access still false, then restart
+   the single existing bot. Keep `url` empty until real HTTPS is ready.
+5. Run `python deploy/catalog-pilot/smoke.py` in the installed candidate with
+   network disabled. In Telegram verify: name → 18+ → selection → ten
    story buttons; reopening `/start` keeps the owner scene; switching heroines
    resumes each current episode; new story has no earlier episode memory. Check
    `/hide`, `/menu`, `/pause`, and `/resume`. Model inference is a separate paid

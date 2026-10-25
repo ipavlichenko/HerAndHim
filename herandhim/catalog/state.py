@@ -47,7 +47,9 @@ class CatalogState:
             """)
             if legacy_owner is not None:
                 user_key(legacy_owner)
-                db.execute("INSERT OR IGNORE INTO catalog_players VALUES (?,1,'sara',1)", (legacy_owner,))
+                # Retain the old episode as a migration option, but every
+                # player enters the app through age confirmation and choice.
+                db.execute("INSERT OR IGNORE INTO catalog_players VALUES (?,0,NULL,1)", (legacy_owner,))
                 db.execute("INSERT OR IGNORE INTO catalog_episodes VALUES (?,'sara',?,1)",
                            (legacy_owner, f"legacy-{legacy_owner}"))
 

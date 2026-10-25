@@ -14,7 +14,7 @@ from herandhim import config
 from herandhim.catalog.characters import CHARACTERS
 from herandhim.catalog.runtime import CatalogRuntime, CharacterSceneStore
 from herandhim.catalog.state import CatalogState, user_key
-from herandhim.catalog.telegram import ADULT, CatalogTelegramBot, selection_payload
+from herandhim.catalog.telegram import ADULT, CatalogTelegramBot, character_label, selection_payload
 from herandhim.catalog.web import app
 from herandhim.core.agent import Agent
 from herandhim.core.roleplay import ROLEPLAY_SCENARIOS, RoleplaySceneStore, roleplay_start_request
@@ -46,7 +46,11 @@ def test_catalog_is_complete_and_portraits_ship_with_package():
 
 def test_selection_restart_and_independent_episode(tmp_path):
     store = CatalogState(tmp_path, legacy_owner=1)
-    legacy = store.selected(1)
+    assert store.selected(1) is None
+    assert store.active_users() == []
+    assert not store.is_adult(1)
+    store.confirm_adult(1)
+    legacy = store.select(1, "sara")
     assert legacy.legacy and legacy.session_id == "telegram:1"
     assert legacy.data_home(tmp_path) == tmp_path
     store.confirm_adult(2)
@@ -138,6 +142,8 @@ def test_existing_owner_files_unchanged_and_new_episode_cannot_read_them(tmp_pat
         RoleplaySceneStore("telegram:1").start()
     original = {p: p.read_bytes() for p in (tmp_path / "context").rglob("*") if p.is_file()}
     r = runtime(tmp_path, settings)
+    r.state.confirm_adult(1)
+    r.select(1, "sara")
     assert r.last_reply(r.state.selected(1)) == "OWNER_PRIVATE"
     r.state.confirm_adult(2)
     episode = r.select(2, "sara")
@@ -248,7 +254,7 @@ def test_name_age_selection_resume_and_dedup_without_inference(tmp_path, setting
         assert group.replies == []
         malicious = Message(data='{"v":1,"character_id":"eva","user_id":1}')
         await bot._handle_catalog_update(update(malicious, 6), None)
-        assert r.state.selected(1).legacy
+        assert r.state.selected(1) is None
         assert "Не удалось" in malicious.replies[0][0]
     asyncio.run(scenario())
     assert "Как тебя называть" in messages[0].replies[0][0]
@@ -435,3 +441,87 @@ def test_player_called_sarah_is_not_renamed_to_the_character(tmp_path, settings)
             assert 'chosen name is "Сара"' in a._build_secured_response_card(7800)
     finally:
         r.close()
+
+
+def test_native_selection_gates_and_shared_webapp_state(tmp_path, settings):
+    r = runtime(tmp_path, settings)
+    bot = CatalogTelegramBot(r, "synthetic", "", public=False, allowed_users=[1])
+    r.transport.save_player_name("telegram:1", "Павел")
+    number = 0
+
+    async def send(text="", data=None, uid=1, chat_type="private"):
+        nonlocal number
+        number += 1
+        message = Message(text, data)
+        await bot._handle_catalog_update(update(message, number, uid, chat_type), None)
+        return message
+
+    async def scenario():
+        blocked = await send(character_label(CHARACTERS[0]), uid=2)
+        assert "участникам тестирования" in blocked.replies[0][0]
+        assert r.state.selected(2) is None
+        assert not (await send("/start", chat_type="group")).replies
+        age = await send(character_label(CHARACTERS[0]))
+        assert "18 лет" in age.replies[0][0] and r.state.selected(1) is None
+        catalog = await send(ADULT)
+        keyboard = catalog.replies[0][1]["reply_markup"].keyboard
+        assert len(keyboard) == 10
+        assert {b.text for row in keyboard for b in row} == {character_label(c) for c in CHARACTERS}
+        assert all(b.web_app is None for row in keyboard for b in row)
+        for companion in CHARACTERS:
+            chosen = await send(character_label(companion))
+            assert r.state.selected(1).character_id == companion.id
+            assert companion.name in chosen.replies[0][0]
+        first = r.state.selected(1)
+        await send(data=json.dumps({"v": 1, "character_id": first.character_id}))
+        assert r.state.selected(1) == first
+        await send("/hide")
+        assert r.transport.keyboard_hidden("telegram:1")
+        menu = await send("/menu")
+        assert not r.transport.keyboard_hidden("telegram:1")
+        assert menu.replies[0][1]["reply_markup"].keyboard[0][0].web_app is None
+        await send("/pause")
+        assert r.state.active_users() == []
+        await send("/resume")
+        assert r.state.active_users() == [1]
+        r.transport.enqueue(first.session_id, 1, "PENDING", reason="roleplay")
+        await send(character_label(CHARACTERS[0]))
+        assert r.transport.pending_count(first.session_id) == 0
+        await send(character_label(CHARACTERS[-1]))
+        assert r.state.selected(1) == first
+        await send("/start")
+        assert r.state.selected(1) == first
+        restarted = CatalogRuntime(r.provider, tmp_path, settings)
+        assert restarted.state.selected(1) == first
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("url", ["http://example.org/", "https://user:pass@example.org/", "not-a-url"])
+def test_native_fallback_does_not_accept_invalid_configured_url(tmp_path, settings, url):
+    with pytest.raises(ValueError, match="HTTPS"):
+        CatalogTelegramBot(runtime(tmp_path, settings), "synthetic", url, public=False, allowed_users=[1])
+
+
+def test_removed_tester_never_receives_catalog_initiative(tmp_path, settings):
+    r = runtime(tmp_path, settings)
+    r.state.confirm_adult(2)
+    e = r.select(2, "eva")
+    with r.scope(e):
+        RoleplaySceneStore(e.session_id).start()
+    r.transport.enqueue(e.session_id, 2, "PENDING", reason="roleplay")
+    bot = CatalogTelegramBot(r, "synthetic", "", public=False, allowed_users=[1])
+    asyncio.run(bot._tick_user(2))
+    assert r.transport.pending_count(e.session_id) == 1
+
+
+def test_transport_failure_never_logs_exception_payload(tmp_path, settings, caplog):
+    r = runtime(tmp_path, settings)
+    bot = CatalogTelegramBot(r, "synthetic", "", public=False, allowed_users=[1])
+    async def failed(*_):
+        raise RuntimeError("PRIVATE_MESSAGE_AND_TOKEN")
+    bot._process = failed
+    m = Message("/start")
+    asyncio.run(bot._handle_catalog_update(update(m, 1, uid=1), None))
+    assert "PRIVATE_MESSAGE_AND_TOKEN" not in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "Не получилось" in m.replies[0][0]

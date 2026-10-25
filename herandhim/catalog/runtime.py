@@ -98,7 +98,7 @@ class CatalogRuntime:
         options = self.settings.get("catalog", {})
         owner = options.get("legacyOwnerId")
         if owner is None:
-            raise ValueError("Explicit catalog.legacyOwnerId is required to preserve Sarah")
+            raise ValueError("Explicit catalog.legacyOwnerId is required for existing data migration")
         self.state = CatalogState(self.root, legacy_owner=owner, max_users=options.get("maxUsers", 50))
         self.transport = TelegramTransportStore(self.root / "context/state/telegram_transport.sqlite3")
         self.provider = provider
