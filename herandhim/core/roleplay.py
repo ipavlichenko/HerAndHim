@@ -12,6 +12,7 @@ from pathlib import Path
 from threading import RLock
 
 from .. import config
+from .output_language import RUSSIAN_OUTPUT_INSTRUCTION
 
 ROLEPLAY_SCENARIOS = (
     {
@@ -423,7 +424,7 @@ ROLEPLAY_TURN_TOOL = {
                             "text": {
                                 "type": "string",
                                 "maxLength": 1_200,
-                                "description": "Plain Russian text without Markdown markers.",
+                                "description": "Русский текст кириллицей, без транслита и Markdown-разметки.",
                             },
                         },
                         "required": ["type", "text"],
@@ -738,6 +739,7 @@ class RoleplaySceneStore:
             "for detail or the current answer needs it; keep speech complete and natural. "
             "These targets apply to the visible beats, not the JSON state delta."
             + opening
+            + "\n" + RUSSIAN_OUTPUT_INSTRUCTION
         )
 
     def _write(self, state: dict) -> None:

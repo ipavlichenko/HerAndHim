@@ -174,7 +174,12 @@ class PersistentAgent(Agent):
         Here we drop that synthetic user message after generation and keep
         only the assistant reply (the message actually delivered)."""
         start = len(self.messages)
-        response = super().chat(user_input)
+        previous_internal = getattr(self, "_internal_user_input_active", False)
+        self._internal_user_input_active = True
+        try:
+            response = super().chat(user_input)
+        finally:
+            self._internal_user_input_active = previous_internal
         if start < len(self.messages) and self.messages[start].get("role") == "user":
             del self.messages[start]
         self._save()

@@ -43,6 +43,14 @@ from .llm.base import LLMProvider
 from .memory.emotional_graph import SentimentAnalyzer
 from .memory.manager import MemoryManager
 from .memory.temporal_index import TimelineEvent
+from .output_language import (
+    RUSSIAN_OUTPUT_FAILURE_TEXT,
+    RUSSIAN_OUTPUT_INSTRUCTION,
+    RussianOutputError,
+    enforce_russian_output,
+    is_russian,
+    latin_literals,
+)
 from .roleplay import (
     ROLEPLAY_TURN_FAILURE_TEXT,
     ROLEPLAY_TURN_TOOL,
@@ -1009,6 +1017,12 @@ Don't repeat this if `bot_name` already exists in memory.
                             "per user turn. Do not retry; reply with a brief apology."
                         )
                     self._media_tool_used_this_turn = True
+            if func_name in {"take_selfie", "candid_shot", "send_photo"} and isinstance(args.get("caption"), str):
+                caption, _ = enforce_russian_output(
+                    args["caption"], config.get_str("agent", "language", default="en") or "en",
+                    allowed_latin=self._allowed_output_latin(),
+                )
+                args = {**args, "caption": caption}
             if func_name == "use_skill":
                 result = self._use_skill(args.get("skill_name"))
             elif func_name == "list_skill_resources":
@@ -1379,7 +1393,7 @@ Don't repeat this if `bot_name` already exists in memory.
         return result
 
     @staticmethod
-    def _sanitize_immersion_history(messages: list[dict]) -> list[dict]:
+    def _sanitize_immersion_history(messages: list[dict], *, allowed_latin=()) -> list[dict]:
         """Keep prior ontology breaks from priming the next model response.
 
         The persistent transcript remains untouched for audit/recovery.  Only
@@ -1394,7 +1408,10 @@ Don't repeat this if `bot_name` already exists in memory.
                 result.append(message)
                 continue
             guarded, replaced = enforce_immersion(message["content"], language)
-            result.append({**message, "content": guarded} if replaced else message)
+            guarded, language_repaired = enforce_russian_output(
+                guarded, language, allowed_latin=allowed_latin, strict=False,
+            )
+            result.append({**message, "content": guarded} if replaced or language_repaired else message)
         return result
 
     def _get_pruned_messages(self) -> list[dict]:
@@ -1434,7 +1451,7 @@ Don't repeat this if `bot_name` already exists in memory.
             chat_msgs = chat_msgs[-self.max_chat_history:]
 
         chat_msgs = self._sanitize_tool_pairs(chat_msgs)
-        chat_msgs = self._sanitize_immersion_history(chat_msgs)
+        chat_msgs = self._sanitize_immersion_history(chat_msgs, allowed_latin=self._allowed_output_latin())
 
         # Drop any assistant turn with neither content nor tool_calls. The vision
         # provider (Gemini) can hand back an empty assistant message; re-sending
@@ -1477,10 +1494,11 @@ Don't repeat this if `bot_name` already exists in memory.
         )
         header = (
             "You are the personal companion described below. Stay in character.\n"
-            f"Reply only in language code {language}. Be conversational and concise.\n"
+            + (RUSSIAN_OUTPUT_INSTRUCTION if is_russian(language)
+               else f"Reply only in language code {language}.")
+            + " Be conversational and concise.\n"
             "Prioritize meaningful direct speech. Narration is optional outside role-play; "
-            "when useful, keep it to one brief remark. Shorten descriptions and repeated "
-            "gestures rather than compressing Sarah's dialogue or omitting a needed answer.\n"
+            "keep it brief. Cut descriptions, not needed answers.\n"
             + player_identity
             + "Sarah and the player are adults; consensual explicit sexting is allowed. "
             "Stop immediately on refusal, hesitation, or withdrawn consent.\n"
@@ -2321,6 +2339,10 @@ Don't repeat this if `bot_name` already exists in memory.
                 messages=sys_msgs + [{"role": "user", "content": req}], tools=[],
             )
             cap = (resp.choices[0].message.content or "").strip().strip('"').strip()
+            cap, _ = enforce_russian_output(
+                cap, config.get_str("agent", "language", default="en") or "en",
+                allowed_latin=self._allowed_output_latin(),
+            )
             return cap.splitlines()[0][:120] if cap else ""
         except Exception as exc:  # noqa: BLE001
             logger.debug("[Agent] caption_for_selfie failed: %s", exc)
@@ -2388,8 +2410,47 @@ Don't repeat this if `bot_name` already exists in memory.
             result["reasoning_effort"] = "none"
         return result
 
+    def _allowed_output_latin(self) -> frozenset[str]:
+        """Only human-provided literals can authorize extra Latin wording."""
+        sources = [getattr(self, "player_name", "")]
+        messages = getattr(self, "messages", [])
+        internal_index = (
+            next((index for index in range(len(messages) - 1, -1, -1)
+                  if messages[index].get("role") == "user"), None)
+            if getattr(self, "_internal_user_input_active", False) else None
+        )
+        for index in range(max(0, len(messages) - 16), len(messages)):
+            message = messages[index]
+            if message.get("role") != "user" or index == internal_index:
+                continue
+            content = message.get("content", "")
+            if isinstance(content, list):
+                content = " ".join(str(part.get("text", "")) for part in content
+                                   if isinstance(part, dict) and part.get("type") == "text")
+            if isinstance(content, str) and not content.lstrip().startswith("[[ROLEPLAY_"):
+                sources.append(content)
+        return latin_literals(sources)
+
+    def _prepare_media_captions(self, message) -> None:
+        """Validate visible captions before tool history, side effects or another round."""
+        for call in message.tool_calls or []:
+            if call.function.name not in {"take_selfie", "candid_shot", "send_photo"}:
+                continue
+            try:
+                args = json.loads(call.function.arguments)
+            except (TypeError, ValueError):
+                continue  # The existing tool-argument validator owns malformed JSON.
+            if not isinstance(args, dict) or not isinstance(args.get("caption"), str):
+                continue
+            caption, repaired = enforce_russian_output(
+                args["caption"], config.get_str("agent", "language", default="en") or "en",
+                allowed_latin=self._allowed_output_latin(),
+            )
+            if repaired:
+                call.function.arguments = json.dumps({**args, "caption": caption}, ensure_ascii=False)
+
     @staticmethod
-    def _enforce_immersion_response(text: str) -> str:
+    def _enforce_immersion_response(text: str, *, allowed_latin=()) -> str:
         """Keep ordinary companion replies inside the agreed character contract."""
         from .immersion import enforce_immersion
 
@@ -2397,6 +2458,13 @@ Don't repeat this if `bot_name` already exists in memory.
         guarded, replaced = enforce_immersion(text, language)
         if replaced:
             logger.warning("[Agent] Replaced an ordinary-dialogue immersion break")
+        try:
+            guarded, repaired = enforce_russian_output(guarded, language, allowed_latin=allowed_latin)
+        except RussianOutputError:
+            logger.warning("[Agent] output_language: rejected unexpected_latin_output")
+            return RUSSIAN_OUTPUT_FAILURE_TEXT
+        if repaired:
+            logger.info("[Agent] output_language: repaired Russian script")
         return guarded
 
     def _accept_roleplay_proposal(
@@ -2411,6 +2479,11 @@ Don't repeat this if `bot_name` already exists in memory.
             raise ValueError("missing_roleplay_proposal")
         proposal = decode_roleplay_turn_proposal(calls[0].function.arguments)
         rendered = render_roleplay_turn(proposal)
+        rendered, repaired = enforce_russian_output(
+            rendered, "ru", allowed_latin=self._allowed_output_latin(),
+        )
+        if repaired:
+            logger.info("[Agent] output_language: repaired Russian scene script")
         candidate = self.roleplay.preview_update(
             proposal.state_delta,
             opening_accepted=opening,
@@ -2528,7 +2601,9 @@ Don't repeat this if `bot_name` already exists in memory.
                             "content": ROLEPLAY_TURN_FAILURE_TEXT,
                         })
                         return ROLEPLAY_TURN_FAILURE_TEXT
-                    response_text = self._enforce_immersion_response(message.content or "")
+                    response_text = self._enforce_immersion_response(
+                        message.content or "", allowed_latin=self._allowed_output_latin(),
+                    )
                     message_dump = message.model_dump()
                     message_dump["content"] = response_text
                     self.messages.append(message_dump)
@@ -2553,6 +2628,10 @@ Don't repeat this if `bot_name` already exists in memory.
                             opening=roleplay_opening,
                         )
                     except ValueError as exc:
+                        failure_text = (
+                            RUSSIAN_OUTPUT_FAILURE_TEXT if isinstance(exc, RussianOutputError)
+                            else ROLEPLAY_TURN_FAILURE_TEXT
+                        )
                         _log_detail({
                             "event": "roleplay_proposal",
                             "schema_version": 1,
@@ -2562,9 +2641,9 @@ Don't repeat this if `bot_name` already exists in memory.
                         })
                         self.messages.append({
                             "role": "assistant",
-                            "content": ROLEPLAY_TURN_FAILURE_TEXT,
+                            "content": failure_text,
                         })
-                        return ROLEPLAY_TURN_FAILURE_TEXT
+                        return failure_text
 
                     self.roleplay.commit(candidate)
                     self.messages.append({"role": "assistant", "content": response_text})
@@ -2588,6 +2667,13 @@ Don't repeat this if `bot_name` already exists in memory.
                     self._update_affect(user_input, response_text)
                     self._maybe_clear_history_after_turn()
                     return response_text
+
+                try:
+                    self._prepare_media_captions(message)
+                except RussianOutputError:
+                    logger.warning("[Agent] output_language: rejected caption before tool execution")
+                    self.messages.append({"role": "assistant", "content": RUSSIAN_OUTPUT_FAILURE_TEXT})
+                    return RUSSIAN_OUTPUT_FAILURE_TEXT
 
                 tool_rounds += 1
                 if tool_rounds > self.MAX_TOOL_ROUNDS:
@@ -2619,7 +2705,9 @@ Don't repeat this if `bot_name` already exists in memory.
                             **outbound_kw,
                         )
                         final_msg = final.choices[0].message
-                        response_text = self._enforce_immersion_response(final_msg.content or "")
+                        response_text = self._enforce_immersion_response(
+                            final_msg.content or "", allowed_latin=self._allowed_output_latin(),
+                        )
                         final_dump = final_msg.model_dump()
                         final_dump["content"] = response_text
                         self.messages.append(final_dump)
@@ -2715,10 +2803,10 @@ Don't repeat this if `bot_name` already exists in memory.
         Returns the full final text, same as ``chat()``.
         """
         user_input = self._normalize_input(user_input)
-        # Role-play has a mandatory state-update tool round followed by one
-        # final prose round. Keep that transaction on the non-streaming
-        # path so partial text cannot escape before durable state is written.
-        if is_roleplay_start(user_input) or self.roleplay.is_active():
+        # Russian text must pass the script boundary before any visible chunk;
+        # scene proposals also need atomic acceptance before their delivery.
+        language = config.get_str("agent", "language", default="en") or "en"
+        if is_roleplay_start(user_input) or self.roleplay.is_active() or is_russian(language):
             response = self.chat(user_input)
             if callable(on_token):
                 try:
@@ -2794,7 +2882,9 @@ Don't repeat this if `bot_name` already exists in memory.
                 message = response.choices[0].message
 
                 if not message.tool_calls:
-                    response_text = self._enforce_immersion_response(message.content or "")
+                    response_text = self._enforce_immersion_response(
+                        message.content or "", allowed_latin=self._allowed_output_latin(),
+                    )
                     message_dump = message.model_dump()
                     message_dump["content"] = response_text
                     self.messages.append(message_dump)
@@ -2834,7 +2924,9 @@ Don't repeat this if `bot_name` already exists in memory.
                         **outbound_kw,
                     )
                     final_msg = final.choices[0].message
-                    response_text = self._enforce_immersion_response(final_msg.content or "")
+                    response_text = self._enforce_immersion_response(
+                        final_msg.content or "", allowed_latin=self._allowed_output_latin(),
+                    )
                     final_dump = final_msg.model_dump()
                     final_dump["content"] = response_text
                     self.messages.append(final_dump)
