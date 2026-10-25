@@ -242,6 +242,48 @@ def test_mark_opened_and_end_are_durable(tmp_path):
     assert state["active"] is False
     assert state["status"] == "ended"
     assert state["consent_state"] == "stopped"
+    assert state["end_reason"] == "explicit_exit"
+
+
+@pytest.mark.parametrize("consent", ["mutual", "check_in", "paused", "stopped"])
+def test_consent_updates_never_own_scene_lifecycle(tmp_path, consent):
+    store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    before = store.start("country_house_storm")
+    store.mark_opened()
+    store.update({
+        "consent_state": consent,
+        "last_beat": "Сара просит оставить ей пространство.",
+        # Even an unsolicited model field cannot take over lifecycle.
+        "active": False, "status": "ended", "end_reason": "model",
+    })
+    restored = RoleplaySceneStore("telegram:42", root=tmp_path)
+    state = restored.load()
+    assert restored.is_active()
+    assert state["status"] == "active"
+    assert state["end_reason"] is None
+    assert state["consent_state"] == consent
+    assert state["location"] == before["location"]
+    assert state["rules"] == before["rules"]
+    assert state["opening_pending"] is False
+    assert "ACTIVE ROLE-PLAY SCENE" in restored.prompt_block()
+
+
+def test_model_patch_cannot_reopen_explicitly_ended_scene(tmp_path):
+    store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    store.start()
+    store.end()
+    store.update({"consent_state": "mutual", "active": True, "status": "active"})
+    assert not store.is_active()
+    assert store.load()["end_reason"] == "explicit_exit"
+
+
+def test_legacy_ended_scene_is_not_silently_reactivated(tmp_path):
+    store = RoleplaySceneStore("telegram:42", root=tmp_path)
+    legacy = store.initial_state()
+    legacy.pop("end_reason")
+    legacy.update(active=False, status="ended", consent_state="stopped")
+    store.restore(legacy)
+    assert not RoleplaySceneStore("telegram:42", root=tmp_path).is_active()
 
 
 def test_roleplay_validator_rejects_the_observed_broken_opening():
@@ -381,7 +423,8 @@ def _tool_call(name, arguments):
     )
 
 
-def _proposal_call(*, opening=False, last_beat="Илья ответил", markdown=False):
+def _proposal_call(*, opening=False, last_beat="Илья ответил", markdown=False,
+                   consent_state="mutual"):
     action = "Сара остаётся у двери, не делая за Илью ни шага."
     if markdown:
         action = f"*{action}*"
@@ -400,7 +443,7 @@ def _proposal_call(*, opening=False, last_beat="Илья ответил", markdo
         "state_delta": {
             "phase": "hallway",
             "last_beat": last_beat,
-            "consent_state": "mutual",
+            "consent_state": consent_state,
         },
         "beats": beats,
     })
@@ -448,6 +491,59 @@ def test_active_turn_uses_one_typed_call_then_commits_candidate_state(
     assert proposal_trace["valid"] is True
     assert proposal_trace["committed"] is True
     assert proposal_trace["turn_index_after"] == proposal_trace["turn_index_before"] + 1
+
+
+def test_stop_then_presence_check_keeps_scene_route_despite_compaction_failure(
+    tmp_path, monkeypatch,
+):
+    from herandhim.core import agent as agent_module
+    from herandhim.core import quota
+
+    provider = _Provider([
+        _Message(tool_calls=[_proposal_call(consent_state="stopped")]),
+        _Message(tool_calls=[_proposal_call(consent_state="stopped")]),
+    ])
+    monkeypatch.setattr(agent_module.config, "HERANDHIM_HOME", tmp_path)
+    monkeypatch.setattr(quota, "check_messages", lambda: None)
+    monkeypatch.setattr(quota, "record_message", lambda: None)
+    compaction_attempts = []
+
+    def failed_compaction(**kwargs):
+        compaction_attempts.append(True)
+        raise ValueError("input_budget_exceeded")
+
+    monkeypatch.setattr(agent_module, "_do_compact", failed_compaction)
+    agent = Agent(
+        provider, session_id="telegram:42", skills_dirs=[],
+        memory_dir=str(tmp_path / "memory"),
+        knowledge_path=str(tmp_path / "knowledge"),
+        persona_path=str(tmp_path / "persona"), soul_path=str(tmp_path / "soul"),
+        auto_compaction=True, compaction_threshold=1,
+    )
+    agent._memory_flushed_this_cycle = True
+    monkeypatch.setattr(agent, "_update_affect", lambda *_args: None)
+    before = agent.roleplay.start("country_house_storm")
+    agent.roleplay.mark_opened()
+    agent.chat("Стоп")
+    assert agent.roleplay.is_active()
+    assert agent.roleplay.load()["consent_state"] == "stopped"
+    agent.roleplay = RoleplaySceneStore("telegram:42")
+    reply = agent.chat("Ты здесь?")
+
+    assert compaction_attempts
+    calls = [call for call in provider.calls if call.get("purpose") == "dialogue"]
+    assert len(calls) == 2
+    for call in calls:
+        assert call["tool_choice"]["function"]["name"] == "propose_roleplay_turn"
+        context = json.dumps(call["messages"], ensure_ascii=False)
+        assert "ACTIVE ROLE-PLAY SCENE" in context
+        assert before["location"] in context
+    assert '"consent_state":"stopped"' in "\n".join(
+        str(m.get("content", "")) for m in calls[1]["messages"]
+    )
+    assert reply.startswith("*Сара")
+    assert agent.roleplay.load()["consent_state"] == "stopped"
+    assert agent.roleplay.is_active()
 
 
 def test_typed_turn_needs_no_repair_call(tmp_path, monkeypatch):

@@ -384,6 +384,10 @@ ROLEPLAY_STATE_TOOL = {
                 "consent_state": {
                     "type": "string",
                     "enum": ["mutual", "check_in", "paused", "stopped"],
+                    "description": (
+                        "Consent for the current action, not the scene lifecycle. "
+                        "Stopped means the action must stop; the scene and its boundaries remain."
+                    ),
                 },
             },
             "required": ["phase", "last_beat", "consent_state"],
@@ -527,6 +531,7 @@ class RoleplaySceneStore:
             "title": scene["title"],
             "active": True,
             "status": "active",
+            "end_reason": None,
             "phase": scene["phase"],
             "location": scene["location"],
             "sarah_position": scene["sarah_position"],
@@ -633,9 +638,9 @@ class RoleplaySceneStore:
                 state["consent_state"] = patch["consent_state"]
             state["turn_index"] = min(int(state.get("turn_index", 0)) + 1, 1_000_000)
             state["updated_at"] = _now()
-            if state.get("consent_state") == "stopped":
-                state["active"] = False
-                state["status"] = "ended"
+            # Consent belongs to the fictional action, not the control plane.
+            # Only an explicit lifecycle command may end a scene via end().
+            # In particular, do not turn a refusal into loss of scene context.
             if opening_accepted:
                 state["opening_pending"] = False
                 state["turn_index"] = max(1, int(state.get("turn_index", 0)))
@@ -665,6 +670,7 @@ class RoleplaySceneStore:
             state.update({
                 "active": False,
                 "status": "ended",
+                "end_reason": "explicit_exit",
                 "consent_state": "stopped",
                 "updated_at": _now(),
             })
