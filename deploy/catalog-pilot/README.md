@@ -5,7 +5,25 @@ app. Sarah is one of twenty characters, not a separate personal product.
 The public catalogue is a separate static-only service; never
 publish the private dashboard on port 7788.
 
-## Current deployment, 2026-10-25
+## Current operating mode, 2026-10-26
+
+Initiative is globally disabled at the owner's explicit request:
+`proactive.enabled: false` in protected runtime config and `delivery_enabled: 0`
+in the Telegram transport store. The installed bot registers zero initiative
+jobs; its pending text/proactive-media queues are empty. Direct inbound replies,
+menus and portrait cards remain enabled. Do not enable initiative during a
+restart, `/start`, character switch, image rollback or future deployment.
+`/resume` only changes a per-user preference and cannot override the global stop.
+Restore initiative only after a new explicit owner request.
+
+Configuration-only update; runtime image/revision below are unchanged. Restart
+2026-10-26T07:25:54Z, health and installed menu/photo smoke passed. All17 existing
+identity/history/scene files and the cost ledger were preserved; zero paid calls
+or outgoing test messages. Backup/restore verified. Evidence:
+`artifacts/catalog-pilot/proactive-off-2026-10-26.json` and server record
+`/srv/sara/backups/aigirla-proactive-off-20261026.json`.
+
+## Runtime deployment, 2026-10-25
 
 Runtime revision `a0f326530c0a6b1eea4ddd3c93dca8597701a2a5` is running in the existing
 `sara-pilot` container. Image: `sha256:fab0d1411c3afec023ee8185ead97ad67506fb74124acb0a028c9bfda890c510`.
@@ -29,7 +47,7 @@ that rollback. Do not roll back conversation data or the shared cost ledger.
 
 Owner acceptance: `/start` → name → 18+ → heroine → story, then exchange a few turns.
 Use `/characters` to switch and return, `/stories` for an independent episode,
-and `/pause` to stop initiative. Every explicit `/start` asks for a name and 18+
+and use ordinary messages to continue; initiative is globally off. Every explicit `/start` asks for a name and 18+
 confirmation again, preserving existing stories. `/characters` opens the
 catalogue with the confirmed profile; `/name` changes it for every heroine.
 

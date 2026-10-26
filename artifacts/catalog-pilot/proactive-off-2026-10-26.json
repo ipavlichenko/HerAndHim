@@ -1,0 +1,49 @@
+{
+  "operation": "disable_proactive",
+  "source_revision": "a0f326530c0a6b1eea4ddd3c93dca8597701a2a5",
+  "before": {
+    "image": "sha256:fab0d1411c3afec023ee8185ead97ad67506fb74124acb0a028c9bfda890c510",
+    "started": "2026-10-25T18:08:41.369271614Z",
+    "health": "healthy",
+    "restarts": 0
+  },
+  "live_calls": 0,
+  "telegram_messages": 0,
+  "backup": {
+    "archive": "sara-20261026T072553Z.tar.gz",
+    "createdAt": "20261026T072553Z",
+    "sha256": "f0fb442f3bfc34af350233b9a326744b50ce1ab98289ec869ee3d4933312696c",
+    "bytes": 2418303
+  },
+  "restore_verified": true,
+  "discarded_pending_text": 0,
+  "discarded_pending_proactive_media": 0,
+  "after": {
+    "image": "sha256:fab0d1411c3afec023ee8185ead97ad67506fb74124acb0a028c9bfda890c510",
+    "started": "2026-10-26T07:25:54.732286251Z",
+    "health": "healthy",
+    "restarts": 0
+  },
+  "installed_smoke": {
+    "scheduled_initiative_jobs": 0,
+    "inbound_menu": "PASS",
+    "inbound_portrait": "PASS",
+    "live_calls": 0,
+    "telegram_messages": 0
+  },
+  "content_preserved": true,
+  "preserved_file_count": 17,
+  "cost_ledger_preserved": true,
+  "only_config_change": "proactive.enabled=false",
+  "delivery_enabled": false,
+  "remaining_pending_initiative": 0,
+  "horror_unchanged": true,
+  "error_markers": {
+    "Traceback": 0,
+    " ERROR ": 0,
+    "Conflict:": 0,
+    "Catalog turn failed": 0
+  },
+  "status": "PASS",
+  "checked_at": "2026-10-26T07:26:32.981516+00:00"
+}
